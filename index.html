@@ -192,16 +192,25 @@
       padding:.55rem .85rem; background:var(--bg2);
       border-radius:var(--radius); border-left:2px solid var(--purple);
     }
+    .mitre-item.primary{ border-left-color:var(--red); background:color-mix(in srgb,var(--purple) 4%,var(--bg2)); }
     .mitre-id{
       font-family:var(--mono); font-size:.78rem; font-weight:700;
       color:var(--purple); white-space:nowrap; flex-shrink:0;
       padding:.1rem .4rem; background:color-mix(in srgb,var(--purple) 10%,var(--bg2));
-      border-radius:4px;
+      border-radius:4px; text-decoration:none;
     }
+    .mitre-id:hover{ opacity:.8; }
     .mitre-name{ font-size:.84rem; color:var(--text0); font-weight:600; }
-    .mitre-evidence{ font-size:.78rem; color:var(--text2); margin-top:.15rem; }
+    .mitre-tactic{ font-size:.7rem; color:var(--text3); margin-top:.1rem; }
+    .mitre-evidence{ font-size:.78rem; color:var(--text2); margin-top:.2rem; }
+    .mitre-badges{ display:flex; align-items:center; gap:.35rem; margin-left:auto; flex-shrink:0; }
+    .mitre-primary-badge{
+      font-size:.6rem; font-weight:700; padding:.1rem .45rem; border-radius:20px;
+      text-transform:uppercase; letter-spacing:.04em;
+      background:color-mix(in srgb,var(--red) 15%,var(--bg2)); color:var(--red);
+    }
     .mitre-conf{
-      font-size:.65rem; font-weight:700; margin-left:auto; flex-shrink:0; self-align:flex-start;
+      font-size:.65rem; font-weight:700;
       padding:.1rem .45rem; border-radius:20px; text-transform:uppercase; letter-spacing:.04em;
     }
     .conf-high  { background:color-mix(in srgb,var(--red) 15%,var(--bg2)); color:var(--red); }
@@ -526,12 +535,7 @@
 
     <!-- IOCs -->
     <div id="ioc-section" class="section" style="display:none">
-      <div class="section-title">🔍 IOCs Extracted
-        <a id="pivot-all-link" href="https://dgiry.github.io/ioc-pivot" target="_blank" rel="noopener"
-           style="font-size:.68rem;color:var(--accent);text-decoration:none;font-weight:400;letter-spacing:0;text-transform:none;margin-left:auto">
-          🔭 Pivot first IOC →
-        </a>
-      </div>
+      <div class="section-title">🔍 IOCs Extracted</div>
       <div id="r-iocs" class="ioc-list"></div>
     </div>
 
@@ -1160,34 +1164,45 @@ Alert content:
 ${alertText.substring(0, 4000)}
 \`\`\`
 
-Return exactly this JSON structure (no markdown, no explanation):
+Return exactly this JSON structure (no markdown, no explanation outside the JSON):
 {
-  "source": "vendor/platform name e.g. CrowdStrike, Microsoft Sentinel, Splunk, Sysmon",
-  "summary": "2-3 sentence plain-English summary: what happened, on which system, who was involved",
+  "source": "vendor/platform name e.g. CrowdStrike, Microsoft Sentinel, Splunk, Trend Vision One",
+  "summary": "2-3 sentence plain-English summary: what happened, on which system, who was involved, and what stage of the attack chain this likely represents",
   "severity": {
     "original": "the severity from the alert (Critical/High/Medium/Low/Info or N/A)",
     "real": "your assessed real-world severity (Critical/High/Medium/Low/Info)",
-    "reasoning": "1-2 sentences — is the real severity higher or lower than stated? Why?"
+    "reasoning": "2-3 sentences. Cite the specific signals that drove your assessment: the technique used (e.g. LSASS access = credential theft risk), the target asset or process, the network indicators present, the user privilege level, and whether chaining with other techniques increases the impact. State clearly if you raised or lowered the vendor severity and why."
   },
   "mitre_techniques": [
-    {"id": "T1059.001", "name": "PowerShell", "confidence": "high|medium|low", "evidence": "brief evidence from the alert"}
+    {
+      "id": "T1003.001",
+      "name": "OS Credential Dumping: LSASS Memory",
+      "tactic": "Credential Access",
+      "confidence": "high|medium|low",
+      "is_primary": true,
+      "evidence": "Specific evidence from the alert fields — mention actual values, process names, or field names that support this mapping"
+    }
   ],
   "iocs": [
     {"type": "ip|domain|hash|url|email|username|hostname", "value": "the IOC value"}
   ],
   "investigation_steps": [
-    "Step 1: ...",
-    "Step 2: ..."
+    "Step 1: ..."
   ],
   "recommended_actions": [
-    "Immediately isolate host WORKSTATION-042",
-    "Reset credentials for jsmith"
+    "Consider isolating [hostname] if the activity cannot be attributed to a known legitimate process — verify with the asset owner first",
+    "Reset credentials for [user] if credential dumping is confirmed via memory artefacts or LSASS dump files"
   ],
   "false_positive_likelihood": "low|medium|high",
-  "false_positive_reason": "1-2 sentences explaining the FP assessment"${mode === 'junior' ? `,
+  "false_positive_reason": "Write 2 complete sentences. First: state what makes this alert credible (or not). Second: describe the most plausible legitimate scenario that could explain this alert. Never truncate."${mode === 'junior' ? `,
   "what_this_means_junior": "Simple explanation of why this alert is serious or not — as if explaining to someone new to security",
-  "when_to_escalate": "Clear guidance: when should a junior analyst escalate this? What are the red flags?"` : ''}
-}`;
+  "when_to_escalate": "Clear guidance: when should a junior analyst escalate this? What are the specific red flags to watch for?"` : ''}
+}
+
+Rules for MITRE: list ALL relevant techniques, not just the most obvious one. Mark exactly one as is_primary:true (the technique most directly evidenced). Include the tactic name.
+Rules for investigation_steps: be specific to THIS alert — reference actual field values, process names, user accounts, or IPs from the alert. Include: process tree review, payload/command analysis, IOC validation, lateral movement check, and artefact hunting relevant to the detected technique. Aim for 5-7 steps.
+Rules for recommended_actions: use conditional language ("Consider...", "If confirmed...") unless the signal is unambiguous and critical. Reserve "Immediately..." for cases where delay causes clear additional harm.
+Rules for false_positive_reason: always write complete sentences — never end mid-phrase.`;
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -1240,16 +1255,25 @@ function renderResults(r) {
   const mitreEl = document.getElementById('r-mitre');
   const techs = r.mitre_techniques || [];
   if (techs.length) {
-    mitreEl.innerHTML = techs.map(t => `
-      <div class="mitre-item">
-        <a href="https://attack.mitre.org/techniques/${t.id?.replace('.','/')}/" target="_blank" rel="noopener"
-           class="mitre-id" title="View on MITRE ATT&CK">${esc(t.id || '?')}</a>
+    mitreEl.innerHTML = techs.map(t => {
+      const id   = t.id || '';
+      const url  = id ? `https://attack.mitre.org/techniques/${id.replace('.','/').replace('.','/') }/` : '#';
+      const isPrimary = !!t.is_primary;
+      return `
+      <div class="mitre-item${isPrimary ? ' primary' : ''}">
+        <a href="${url}" target="_blank" rel="noopener"
+           class="mitre-id" title="View on MITRE ATT&CK">${esc(id || '?')}</a>
         <div style="flex:1">
           <div class="mitre-name">${esc(t.name || '')}</div>
+          ${t.tactic ? `<div class="mitre-tactic">${esc(t.tactic)}</div>` : ''}
           ${t.evidence ? `<div class="mitre-evidence">${esc(t.evidence)}</div>` : ''}
         </div>
-        <span class="mitre-conf conf-${(t.confidence||'low').toLowerCase()}">${esc(t.confidence||'low')}</span>
-      </div>`).join('');
+        <div class="mitre-badges">
+          ${isPrimary ? `<span class="mitre-primary-badge">primary</span>` : ''}
+          <span class="mitre-conf conf-${(t.confidence||'low').toLowerCase()}">${esc(t.confidence||'low')}</span>
+        </div>
+      </div>`;
+    }).join('');
   } else {
     mitreEl.innerHTML = '<span style="color:var(--text3);font-size:.84rem">No MITRE techniques identified</span>';
   }
@@ -1294,14 +1318,6 @@ function renderResults(r) {
   fpBadge.textContent = { low:'🔴 Low — likely real', medium:'🟠 Medium', high:'🟢 High — possibly FP' }[fp] || fp;
   fpBadge.className = 'fp-badge fp-' + fp;
   document.getElementById('r-fp-reason').textContent = r.false_positive_reason || '';
-
-  // Fix "Pivot first IOC" link to point at actual first IOC
-  const pivotLink = document.getElementById('pivot-all-link');
-  const firstPivotable = iocs.find(i => isPivotable(i.type));
-  if (firstPivotable) {
-    pivotLink.href = 'https://dgiry.github.io/ioc-pivot?ioc=' + encodeURIComponent(firstPivotable.value);
-    pivotLink.textContent = '🔭 Pivot: ' + firstPivotable.value.substring(0, 20) + (firstPivotable.value.length > 20 ? '…' : '') + ' →';
-  }
 
   localStorage.setItem('cv_oai_key', document.getElementById('api-key-input').value.trim());
   saveHistory(r);
