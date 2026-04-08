@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Alert Explainer — Paste an alert. Understand it instantly.</title>
-  <meta name="description" content="Any SIEM format — CrowdStrike, Sentinel, Splunk, Sysmon, QRadar. Plain-English summary, real severity, MITRE ATT&CK mapping, and what to do next. 100% client-side.">
-  <meta property="og:title" content="Alert Explainer — Paste an alert. Understand it instantly.">
-  <meta property="og:description" content="CrowdStrike, Sentinel, Splunk, Sysmon, QRadar. Real severity, MITRE ATT&CK, IOCs, next steps. No API keys. No backend.">
+  <title>Alert Explainer — Paste a SIEM alert. Get plain English + next steps.</title>
+  <meta name="description" content="Any SIEM format — CrowdStrike, Sentinel, Splunk, Sysmon, QRadar. Plain-English summary, real severity, MITRE ATT&CK mapping, and what to do next. AI-powered, 100% client-side.">
+  <meta property="og:title" content="Alert Explainer — Paste a SIEM alert. Get plain English + next steps.">
+  <meta property="og:description" content="CrowdStrike, Sentinel, Splunk, Sysmon, QRadar. Real severity, MITRE ATT&CK, IOCs, next steps. AI-powered. No backend.">
   <meta property="og:url" content="https://dgiry.github.io/alert-explainer">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -145,6 +145,24 @@
     .tier-free { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:9999px; font-size:10px; font-weight:700; letter-spacing:.04em; background:rgba(74,222,128,.1); color:#86efac; border:1px solid rgba(74,222,128,.2); }
     .tier-ai   { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:9999px; font-size:10px; font-weight:700; letter-spacing:.04em; background:rgba(129,140,248,.1); color:#a5b4fc; border:1px solid rgba(129,140,248,.2); }
 
+    /* ── Legend box ─────────────────────────────────────── */
+    .legend-box {
+      display: inline-flex; align-items: stretch; gap: 0;
+      border: 1px solid rgba(255,255,255,.09); border-radius: 12px; overflow: hidden;
+      margin-bottom: 28px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 18px; font-size: .78rem; font-weight: 600;
+    }
+    .legend-item + .legend-item { border-left: 1px solid rgba(255,255,255,.07); }
+    .legend-free { background: rgba(74,222,128,.06); color: #86efac; }
+    .legend-ai   { background: rgba(129,140,248,.06); color: #a5b4fc; }
+    .legend-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .legend-dot-free { background: #4ade80; }
+    .legend-dot-ai   { background: #818cf8; }
+    .legend-desc { font-size: .71rem; font-weight: 400; opacity: .65; }
+
     /* ── IOC chip ────────────────────────────────────────── */
     .ioc-chip {
       display:inline-flex; align-items:center; gap:6px;
@@ -199,8 +217,8 @@
 
     <!-- H1 -->
     <h1 class="fade-up-2 text-5xl sm:text-7xl font-black tracking-tight leading-none mb-6 max-w-3xl">
-      Paste an alert.<br>
-      <span class="shimmer-text">Understand it instantly.</span>
+      Paste any SIEM alert.<br>
+      <span class="shimmer-text">Get plain English + next steps.</span>
     </h1>
 
     <!-- Subhead -->
@@ -327,6 +345,16 @@
 
   </section>
 
+  <!-- ── Real screenshot ───────────────────────────────────────── -->
+  <div class="max-w-4xl mx-auto px-6 pb-20">
+    <div style="border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.07);box-shadow:0 0 80px rgba(248,81,73,.06),0 40px 100px rgba(0,0,0,.5);">
+      <img src="docs/screenshot-tool.png"
+           alt="Alert Explainer — CrowdStrike detection alert loaded, format auto-detected, ready to explain"
+           style="width:100%;display:block;">
+    </div>
+    <p class="text-center text-xs text-slate-600 mt-3">CrowdStrike encoded PowerShell detection — real tool, no results yet to avoid spoilers</p>
+  </div>
+
   <hr class="divider mx-6">
 
   <!-- ────────────────────────────────────────────────────────── -->
@@ -340,9 +368,17 @@
     </div>
 
     <!-- Legend -->
-    <div class="flex items-center gap-4 justify-center mb-8">
-      <span class="tier-free">✓ FREE — no key needed</span>
-      <span class="tier-ai">🤖 AI — requires OpenAI key</span>
+    <div class="flex justify-center">
+      <div class="legend-box">
+        <div class="legend-item legend-free">
+          <span class="legend-dot legend-dot-free"></span>
+          <span>FREE <span class="legend-desc">— no API key needed</span></span>
+        </div>
+        <div class="legend-item legend-ai">
+          <span class="legend-dot legend-dot-ai"></span>
+          <span>AI <span class="legend-desc">— requires OpenAI key</span></span>
+        </div>
+      </div>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
