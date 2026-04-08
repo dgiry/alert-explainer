@@ -13,6 +13,7 @@ Paste any alert — JSON, raw log, Splunk event, or structured detection — and
 | Output | Requires | Description |
 |--------|----------|-------------|
 | **Instant field extract** | ✓ Free | Format detected + fields, entities, MITRE, IOCs shown immediately — no key needed |
+| **Export JSON / TXT / MD** | ✓ Free | Download or copy the full analysis — structured JSON, plain-text report, or Markdown ready for Notion / Jira / Confluence |
 | **Plain-English summary** | 🤖 AI | What happened, on which system, who was involved |
 | **Real severity** | 🤖 AI | AI-assessed actual risk vs the alert's stated severity, with specific signal reasoning |
 | **MITRE ATT&CK** | 🤖 AI | All mapped techniques with tactic, confidence, evidence — primary technique highlighted |
@@ -80,6 +81,7 @@ Paste your alert → instant field extraction appears immediately → add OpenAI
 - **[🧪 Defang IOC](https://dgiry.github.io/defang-ioc)** — extract and defang/refang IOCs from threat reports
 - **[🔭 IOC Pivot Hub](https://dgiry.github.io/ioc-pivot)** — pivot any IOC to 30+ threat intel platforms
 - **[🔬 CVE Enricher](https://dgiry.github.io/cve-enricher)** — full CVE context: KEV, threat actors, patch priority
+- **[✍️ SIGMA Generator](https://dgiry.github.io/sigma-generator)** — describe an attack, get a detection rule (SIGMA · Splunk · KQL · Elastic · QRadar)
 
 ---
 
