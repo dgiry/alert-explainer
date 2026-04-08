@@ -583,13 +583,16 @@
       </div>
     </div>
 
-    <!-- SIGMA bridge -->
+    <!-- Pipeline bridges -->
     <div class="sigma-bridge">
       <div class="sigma-bridge-text">
-        <strong>✍️ Next step:</strong> Write a detection rule for this attack pattern
+        <strong>▸ Act with the SecOps Suite</strong>
       </div>
-      <button class="btn-sm" onclick="openSigmaGenerator()" style="border-color:color-mix(in srgb,var(--purple) 40%,var(--border));color:var(--purple)">
+      <button class="btn-sm" id="bridge-sigma" onclick="openSigmaGenerator()" style="border-color:color-mix(in srgb,var(--purple) 40%,var(--border));color:var(--purple)">
         ✍️ SIGMA Generator →
+      </button>
+      <button class="btn-sm" id="bridge-playbook" onclick="openPlaybookBuilder()" style="border-color:color-mix(in srgb,var(--orange) 40%,var(--border));color:var(--orange)">
+        📖 Playbook Builder →
       </button>
     </div>
 
@@ -1860,9 +1863,25 @@ function loadHistory(idx) {
   onInput();
 }
 
-/* ── SIGMA bridge ──────────────────────────────────────── */
+/* ── Pipeline bridges ──────────────────────────────────── */
+function _bridgeText() {
+  // Use AI summary if available, else fall back to raw alert input
+  const summary = lastResult?.summary || '';
+  const raw     = document.getElementById('alert-input')?.value?.trim() || '';
+  return (summary || raw).slice(0, 300);
+}
+
 function openSigmaGenerator() {
-  const url = 'https://dgiry.github.io/sigma-generator';
+  const text = _bridgeText();
+  const url  = 'https://dgiry.github.io/sigma-generator'
+    + (text ? '?alert=' + encodeURIComponent(text) : '');
+  window.open(url, '_blank', 'noopener');
+}
+
+function openPlaybookBuilder() {
+  const text = _bridgeText();
+  const url  = 'https://dgiry.github.io/playbook-builder'
+    + (text ? '?incident=' + encodeURIComponent(text) : '');
   window.open(url, '_blank', 'noopener');
 }
 
@@ -1896,6 +1915,17 @@ window.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('cv_oai_key', document.getElementById('api-key-input').value.trim());
   });
   renderHistory();
+
+  // Deep-link: ?alert= pre-fills the input
+  const params = new URLSearchParams(window.location.search);
+  const alertParam = params.get('alert');
+  if (alertParam) {
+    const input = document.getElementById('alert-input');
+    if (input) {
+      input.value = alertParam;
+      input.dispatchEvent(new Event('input'));
+    }
+  }
 });
 </script>
 </body>
