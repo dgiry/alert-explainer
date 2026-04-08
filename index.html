@@ -377,10 +377,11 @@
       <button class="btn-primary" id="explain-btn" onclick="explain()">🔍 Explain this alert</button>
       <select class="examples-select" id="examples-select" onchange="loadExample(this.value)">
         <option value="">📋 Load example…</option>
-        <option value="crowdstrike">CrowdStrike — PowerShell detection</option>
-        <option value="sentinel">Microsoft Sentinel — Brute force</option>
-        <option value="splunk">Splunk — Lateral movement</option>
-        <option value="sysmon">Sysmon — Process injection</option>
+        <option value="crowdstrike">🦅 CrowdStrike — PowerShell detection</option>
+        <option value="sentinel">☁️ Microsoft Sentinel — Brute force</option>
+        <option value="splunk">🔵 Splunk — Lateral movement</option>
+        <option value="sysmon">🪟 Sysmon — Process injection</option>
+        <option value="visionone">🔺 Trend Vision One — LSASS credential dump</option>
       </select>
     </div>
 
@@ -595,6 +596,42 @@ Subject: svc_backup used explicit credentials to log on as Administrator on DC01
     User: "CORP\\jdoe",
     Computer: "LAPTOP-1337",
     RuleName: "technique_id=T1055,technique_name=Process Injection"
+  }, null, 2),
+
+  visionone: JSON.stringify({
+    workbenchId: "WB-20240115-00342",
+    workbenchName: "Possible credential dumping via LSASS memory access",
+    riskLevel: "high",
+    severity: "high",
+    createdTime: "2024-01-15T08:42:11Z",
+    updatedTime: "2024-01-15T08:51:03Z",
+    investigationStatus: "New",
+    alertProvider: "SAE",
+    model: "Suspicious Remote Thread Injection into LSASS",
+    description: "A non-system process opened a handle to lsass.exe with PROCESS_VM_READ permissions and created a remote thread, a technique consistent with credential dumping tools such as Mimikatz or Procdump. This was preceded by encoded PowerShell execution on the same endpoint.",
+    attackTechniques: [
+      { id: "T1003.001", name: "LSASS Memory", relevance: "IoA" },
+      { id: "T1055",     name: "Process Injection", relevance: "IoA" },
+      { id: "T1059.001", name: "PowerShell", relevance: "IoA" }
+    ],
+    impactScope: {
+      desktopCount: 1,
+      serverCount: 0,
+      accountCount: 1,
+      emailAddressCount: 0,
+      entities: [
+        {
+          entityType: "host",
+          entityValue: "DESKTOP-7X4K2Z",
+          relatedEntities: ["corp\\jsmith", "CORP\\svc_backup"]
+        }
+      ]
+    },
+    indicators: [
+      { type: "ip",         value: "185.220.101.47", source: "network" },
+      { type: "domain",     value: "c2.evil-domain.ru", source: "network" },
+      { type: "file_sha256",value: "44d88612fea8a8f36de82e1278abb02f3f22489a98abc891", source: "endpoint" }
+    ]
   }, null, 2)
 };
 
@@ -603,6 +640,11 @@ function detectFormat(text) {
   if (!text.trim()) return null;
   try {
     const j = JSON.parse(text);
+    // Trend Micro Vision One / Workbench — check first (specific keys)
+    if (j.workbenchId || j.workbenchName ||
+        (j.riskLevel !== undefined && (j.impactScope || j.attackTechniques)) ||
+        j.alertProvider || (j.investigationStatus && j.attackTechniques) ||
+        j.workbench_id || j.model && j.impactScope) return '🔺 Trend Vision One';
     if (j.event_type === 'DetectionSummaryEvent' || j.pattern_id || j.technique && j.computer_name) return '🦅 CrowdStrike';
     if (j.AlertName || j.WorkspaceId || j.ProviderName?.includes('Microsoft')) return '☁️ Microsoft Sentinel';
     if (j.EventID === 8 || j.EventName === 'CreateRemoteThread' || j.SourceImage) return '🔵 Sysmon';
@@ -616,6 +658,8 @@ function detectFormat(text) {
   if (/LEEF:\d+/i.test(text)) return '📋 LEEF';
   if (/syslog|facility|severity.*\d+/i.test(text)) return '📋 Syslog';
   if (/EventCode|EventID|WinEvent/i.test(text)) return '🪟 Windows Event';
+  // Vision One raw text patterns
+  if (/workbench(?:Id|Name)?|vision\s*one|trend\s*(?:micro|vision)|riskLevel|attackTechniques?|impactScope|investigationStatus|observed\s+attack\s+technique|suspicious\s+object/i.test(text)) return '🔺 Trend Vision One';
   return '📄 Raw Alert';
 }
 
@@ -685,17 +729,101 @@ async function explain() {
   }
 }
 
+/* ── Vision One parser ─────────────────────────────────── */
+function parseVisionOne(text) {
+  let j = null;
+  try { j = JSON.parse(text); } catch { return null; }
+
+  const result = {
+    sourceType: 'trend_vision_one',
+    title:       j.workbenchName || j.model || j.description || 'Unknown Detection',
+    severity:    j.riskLevel     || j.severity || 'unknown',
+    riskLevel:   j.riskLevel     || j.severity || 'unknown',
+    status:      j.investigationStatus || j.status || '',
+    model:       j.model         || '',
+    alertProvider: j.alertProvider || '',
+    description: j.description   || j.summary || '',
+    mitreTechniques: (j.attackTechniques || []).map(t => {
+      if (typeof t === 'string') return t;
+      return [t.id, t.name].filter(Boolean).join(' — ');
+    }),
+    entities: [],
+    iocs: { ips: [], domains: [], urls: [], hashes: [], emails: [] },
+    metadata: {
+      workbenchId: j.workbenchId  || j.workbench_id || '',
+      createdTime: j.createdTime  || j.created_at   || '',
+      updatedTime: j.updatedTime  || j.updated_at   || ''
+    }
+  };
+
+  // Entities from impactScope
+  const scope = j.impactScope || {};
+  (scope.entities || []).forEach(e => {
+    const val = e.entityValue || e.value || e.name || '';
+    if (val) result.entities.push({ type: e.entityType || 'entity', value: val });
+    (e.relatedEntities || []).forEach(re => {
+      if (re) result.entities.push({ type: 'user', value: String(re) });
+    });
+  });
+
+  // IOCs from indicators / iocs array
+  const rawIOCs = j.indicators || j.iocs || j.observedIndicators || [];
+  rawIOCs.forEach(ind => {
+    const t = (ind.type || ind.objectType || '').toLowerCase();
+    const v = ind.value || ind.indicator || ind.objectValue || '';
+    if (!v) return;
+    if (t.includes('ip')     || /^\d{1,3}(\.\d{1,3}){3}$/.test(v))         result.iocs.ips.push(v);
+    else if (t.includes('domain') || t.includes('host') || t.includes('fqdn')) result.iocs.domains.push(v);
+    else if (t.includes('url') || t.includes('uri'))                           result.iocs.urls.push(v);
+    else if (t.includes('hash') || t.includes('sha') || t.includes('md5'))    result.iocs.hashes.push(v);
+    else if (t.includes('email') || t.includes('mail'))                        result.iocs.emails.push(v);
+  });
+
+  return result;
+}
+
+function visionOneContextBlock(alertText, fmt) {
+  if (!fmt.includes('Vision One')) return '';
+  const p = parseVisionOne(alertText);
+  if (!p) return '';
+  const allIOCs = [
+    ...p.iocs.ips.map(v=>`IP:${v}`),
+    ...p.iocs.domains.map(v=>`Domain:${v}`),
+    ...p.iocs.hashes.map(v=>`Hash:${v}`),
+    ...p.iocs.urls.map(v=>`URL:${v}`),
+    ...p.iocs.emails.map(v=>`Email:${v}`)
+  ].join(', ') || 'none extracted';
+  const entityStr = p.entities.map(e=>`${e.type}:${e.value}`).join(', ') || 'none';
+  const mitreStr  = p.mitreTechniques.join(', ') || 'see raw alert';
+  return `
+TREND MICRO VISION ONE — PRE-PARSED CONTEXT (use this to sharpen your analysis):
+  Detection title : ${p.title}
+  Risk level      : ${p.riskLevel}
+  Model/Rule      : ${p.model || 'N/A'}
+  Alert provider  : ${p.alertProvider || 'N/A'}
+  Status          : ${p.status || 'N/A'}
+  MITRE (from alert): ${mitreStr}
+  Affected entities : ${entityStr}
+  IOCs extracted  : ${allIOCs}
+  Workbench ID    : ${p.metadata.workbenchId || 'N/A'}
+
+Use this structured data to give a more precise summary, severity assessment, and investigation steps specific to Vision One Workbench detections.
+`;
+}
+
 /* ── AI call ───────────────────────────────────────────── */
 async function callAI(alertText, fmt, apiKey, model) {
   const modeInstruction = mode === 'junior'
     ? 'The user is a junior SOC analyst. Use simple language, explain technical terms, add "what_this_means_junior" and "when_to_escalate" fields with beginner-friendly guidance.'
     : 'The user is a senior SOC analyst or detection engineer. Be concise and technical. Skip basic explanations.';
 
+  const visionOneCtx = visionOneContextBlock(alertText, fmt);
+
   const prompt = `You are a senior SOC analyst and threat intelligence expert. Analyze the following SIEM alert and respond ONLY with a valid JSON object.
 
 Alert format detected: ${fmt}
 ${modeInstruction}
-
+${visionOneCtx}
 Alert content:
 \`\`\`
 ${alertText.substring(0, 4000)}
