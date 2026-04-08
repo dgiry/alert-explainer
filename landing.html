@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Alert Explainer — Paste a SIEM alert. Get plain English + next steps.</title>
-  <meta name="description" content="Any SIEM format — CrowdStrike, Sentinel, Splunk, Sysmon, QRadar. Plain-English summary, real severity, MITRE ATT&CK mapping, and what to do next. AI-powered, 100% client-side.">
+  <meta name="description" content="Any SIEM format — CrowdStrike, Sentinel, Splunk, Sysmon, Trend Vision One, QRadar. Instant field extraction without AI + full AI analysis. 100% client-side.">
   <meta property="og:title" content="Alert Explainer — Paste a SIEM alert. Get plain English + next steps.">
-  <meta property="og:description" content="CrowdStrike, Sentinel, Splunk, Sysmon, QRadar. Real severity, MITRE ATT&CK, IOCs, next steps. AI-powered. No backend.">
+  <meta property="og:description" content="CrowdStrike, Sentinel, Splunk, Sysmon, Trend Vision One, QRadar. Instant extract (no key) + AI analysis. No backend.">
   <meta property="og:url" content="https://dgiry.github.io/alert-explainer">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -223,7 +223,7 @@
 
     <!-- Subhead -->
     <p class="fade-up-3 text-lg sm:text-xl text-slate-400 max-w-2xl leading-relaxed mb-10">
-      Any SIEM format — CrowdStrike, Sentinel, Splunk, Sysmon, QRadar. Plain-English summary, real severity, MITRE ATT&amp;CK mapping, and what to do next.
+      CrowdStrike, Sentinel, Splunk, Sysmon, Trend Vision One, QRadar — auto-detected. Instant field extraction with no API key, full AI analysis when you need it.
     </p>
 
     <!-- Demo card: split left/right -->
@@ -327,7 +327,7 @@
         <div class="text-3xl mb-3">⚡</div>
         <div class="text-xs font-bold tracking-widest uppercase mb-2" style="color:#f85149">Step 2</div>
         <div class="font-bold text-white mb-2">Auto-detection</div>
-        <div class="text-sm text-slate-400">Format detected instantly — CrowdStrike, Sentinel, Splunk, Sysmon, QRadar, and more.</div>
+        <div class="text-sm text-slate-400">Format detected instantly — CrowdStrike, Sentinel, Splunk, Sysmon, Trend Vision One, QRadar, and more.</div>
       </div>
 
       <div class="step-line hidden sm:block"></div>
@@ -383,16 +383,36 @@
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
 
+      <!-- Instant Extract -->
+      <div class="output-card sm:col-span-2 lg:col-span-2">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <span class="text-xl">⚡</span>
+            <span class="text-xs font-bold tracking-widest uppercase text-slate-400">Instant Extract</span>
+          </div>
+          <span class="tier-free">✓ FREE</span>
+        </div>
+        <p class="text-sm text-slate-300 leading-relaxed mb-2">Paste an alert — fields, entities, MITRE techniques and IOCs appear <strong>immediately</strong>, before any AI call. Works for all 8 formats.</p>
+        <div class="flex flex-wrap gap-2 mt-3">
+          <span class="text-xs px-2 py-1 rounded" style="background:rgba(248,81,73,.08);color:#fca5a5;border:1px solid rgba(248,81,73,.2)">🔺 Vision One</span>
+          <span class="text-xs px-2 py-1 rounded" style="background:rgba(255,255,255,.05);color:#94a3b8;border:1px solid rgba(255,255,255,.1)">🦅 CrowdStrike</span>
+          <span class="text-xs px-2 py-1 rounded" style="background:rgba(255,255,255,.05);color:#94a3b8;border:1px solid rgba(255,255,255,.1)">☁️ Sentinel</span>
+          <span class="text-xs px-2 py-1 rounded" style="background:rgba(255,255,255,.05);color:#94a3b8;border:1px solid rgba(255,255,255,.1)">🔵 Splunk</span>
+          <span class="text-xs px-2 py-1 rounded" style="background:rgba(255,255,255,.05);color:#94a3b8;border:1px solid rgba(255,255,255,.1)">🪟 Sysmon</span>
+          <span class="text-xs text-slate-600 self-center">+ more</span>
+        </div>
+      </div>
+
       <!-- Summary -->
-      <div class="output-card sm:col-span-2 lg:col-span-1">
+      <div class="output-card">
         <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-2">
             <span class="text-xl">📝</span>
             <span class="text-xs font-bold tracking-widest uppercase text-slate-400">Summary</span>
           </div>
-          <span class="tier-free">✓ FREE</span>
+          <span class="tier-ai">🤖 AI</span>
         </div>
-        <p class="text-sm text-slate-300 leading-relaxed italic border-l-2 pl-3" style="border-color:#f85149">"Encoded PowerShell execution via cmd.exe, consistent with a dropper or C2 beacon. Low lateral movement observed — likely initial access stage."</p>
+        <p class="text-sm text-slate-300 leading-relaxed italic border-l-2 pl-3" style="border-color:#f85149">"Encoded PowerShell execution via cmd.exe, consistent with a dropper or C2 beacon. Likely initial access stage."</p>
         <p class="text-xs text-slate-500 mt-2">Written for analysts. No jargon.</p>
       </div>
 

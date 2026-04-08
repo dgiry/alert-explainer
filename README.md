@@ -10,15 +10,16 @@
 
 Paste any alert — JSON, raw log, Splunk event, or structured detection — and get:
 
-| Output | Description |
-|--------|-------------|
-| **Plain-English summary** | What happened, on which system, who was involved |
-| **Real severity** | AI-assessed actual risk vs the alert's stated severity |
-| **MITRE ATT&CK** | Mapped techniques with confidence level and evidence |
-| **IOC extraction** | IPs, domains, hashes, users — with one-click pivot to IOC Pivot Hub |
-| **Investigation steps** | Ordered checklist of what to do first |
-| **Recommended actions** | Concrete responses: isolate, reset, block, escalate |
-| **False positive likelihood** | Low / Medium / High with reasoning |
+| Output | Requires | Description |
+|--------|----------|-------------|
+| **Instant field extract** | ✓ Free | Format detected + fields, entities, MITRE, IOCs shown immediately — no key needed |
+| **Plain-English summary** | 🤖 AI | What happened, on which system, who was involved |
+| **Real severity** | 🤖 AI | AI-assessed actual risk vs the alert's stated severity, with specific signal reasoning |
+| **MITRE ATT&CK** | 🤖 AI | All mapped techniques with tactic, confidence, evidence — primary technique highlighted |
+| **IOC extraction** | 🤖 AI | IPs, domains, hashes, users — with one-click pivot to IOC Pivot Hub |
+| **Investigation steps** | 🤖 AI | 5-7 specific steps referencing actual field values from the alert |
+| **Recommended actions** | 🤖 AI | Concrete responses: isolate, reset, block, escalate |
+| **False positive likelihood** | 🤖 AI | Low / Medium / High with full reasoning |
 
 ---
 
@@ -28,6 +29,7 @@ Auto-detected from the input — no configuration needed.
 
 | Platform | Detection |
 |----------|-----------|
+| 🔺 Trend Vision One | `workbenchId`, `workbenchName`, `riskLevel`, `attackTechniques`, `impactScope` |
 | 🦅 CrowdStrike | `DetectionSummaryEvent`, `pattern_id`, `computer_name` |
 | ☁️ Microsoft Sentinel | `AlertName`, `WorkspaceId`, `ProviderName` |
 | 🔵 Splunk | `index=`, `WinEventLog`, `EventCode` |
@@ -49,7 +51,8 @@ Auto-detected from the input — no configuration needed.
 
 ## Built-in examples
 
-4 real-world style alerts ready to load:
+5 real-world style alerts ready to load:
+- 🔺 **Trend Vision One** — LSASS credential dump (T1003.001 + T1055 + T1059.001, 3 IOCs)
 - 🦅 **CrowdStrike** — Encoded PowerShell with remote IP and base64 command
 - ☁️ **Microsoft Sentinel** — Brute force with successful login from Russia
 - 🔵 **Splunk** — Lateral movement with explicit credential use
@@ -63,7 +66,7 @@ Auto-detected from the input — no configuration needed.
 https://dgiry.github.io/alert-explainer
 ```
 
-Paste your alert → click **Explain this alert** → get full analysis in seconds.
+Paste your alert → instant field extraction appears immediately → add OpenAI key → click **Explain this alert** → full AI analysis in seconds.
 
 ---
 
@@ -89,7 +92,7 @@ git clone https://github.com/dgiry/alert-explainer
 # open index.html in your browser
 ```
 
-Requires an OpenAI API key for AI analysis. Key stored in `localStorage` only — never transmitted anywhere except directly to OpenAI.
+OpenAI API key required for AI analysis. Key stored in `localStorage` only — never transmitted anywhere except directly to OpenAI. Shared with CVE Enricher (`cv_oai_key`).
 
 ## License
 
