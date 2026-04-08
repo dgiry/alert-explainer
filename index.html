@@ -304,6 +304,62 @@
     .no-key-title{ font-size:.9rem; font-weight:600; color:var(--text0); margin-bottom:.3rem; }
     .no-key-sub{ font-size:.8rem; color:var(--text2); }
 
+    /* ── Static analysis panel ──────────────────────── */
+    #static-panel{ display:none; }
+    .static-panel{
+      background:var(--bg1); border:1px solid var(--border);
+      border-radius:var(--radius-lg); padding:1rem 1.35rem;
+      margin-bottom:1rem;
+    }
+    .static-panel-header{
+      display:flex; align-items:center; justify-content:space-between;
+      margin-bottom:.75rem; flex-wrap:wrap; gap:.4rem;
+    }
+    .static-panel-title{
+      font-size:.7rem; font-weight:700; letter-spacing:.08em;
+      text-transform:uppercase; color:var(--text3);
+      display:flex; align-items:center; gap:.4rem;
+    }
+    .static-no-ai-note{
+      font-size:.7rem; color:var(--text3);
+      background:var(--bg2); border:1px solid var(--border);
+      padding:.15rem .6rem; border-radius:20px;
+    }
+    .static-grid{
+      display:flex; flex-wrap:wrap; gap:.65rem 1.5rem;
+      margin-bottom:.65rem;
+    }
+    .static-field{ min-width:90px; }
+    .static-field-label{
+      font-size:.64rem; text-transform:uppercase; letter-spacing:.06em;
+      color:var(--text3); margin-bottom:.2rem; font-weight:600;
+    }
+    .static-field-value{
+      font-size:.83rem; color:var(--text0); font-weight:500;
+      font-family:var(--mono); word-break:break-all;
+    }
+    .static-divider{ border:none; border-top:1px solid var(--border2); margin:.6rem 0; }
+    .static-mitre{ display:flex; flex-wrap:wrap; gap:.35rem; margin-bottom:.6rem; }
+    .static-mitre-chip{
+      font-family:var(--mono); font-size:.72rem; font-weight:700;
+      padding:.18rem .6rem; border-radius:4px;
+      background:color-mix(in srgb,var(--purple) 10%,var(--bg2));
+      color:var(--purple);
+      border:1px solid color-mix(in srgb,var(--purple) 25%,var(--border));
+      text-decoration:none; transition:opacity .15s;
+    }
+    .static-mitre-chip:hover{ opacity:.8; }
+    .static-ioc-row{ display:flex; flex-wrap:wrap; gap:.4rem; }
+    .static-ai-nudge{
+      margin-top:.75rem; padding:.6rem .85rem;
+      background:color-mix(in srgb,var(--accent) 6%,var(--bg1));
+      border:1px dashed color-mix(in srgb,var(--accent) 25%,var(--border));
+      border-radius:var(--radius); font-size:.78rem; color:var(--text2);
+      display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
+    }
+    .static-ai-nudge a{ color:var(--accent); text-decoration:none; }
+    .static-ai-nudge a:hover{ text-decoration:underline; }
+
     /* ── Toast ───────────────────────────────────────── */
     #toast{
       position:fixed; bottom:1.5rem; left:50%; transform:translateX(-50%) translateY(60px);
@@ -407,6 +463,17 @@
 
   <!-- Error -->
   <div id="error-box"></div>
+
+  <!-- Static pre-analysis (no AI key needed) -->
+  <div id="static-panel">
+    <div class="static-panel">
+      <div class="static-panel-header">
+        <div class="static-panel-title">⚡ Instant extract <span style="font-weight:400;text-transform:none;letter-spacing:0">— no AI key needed</span></div>
+        <span class="static-no-ai-note">from alert fields</span>
+      </div>
+      <div id="static-body"></div>
+    </div>
+  </div>
 
   <!-- Loading -->
   <div id="status-bar">
@@ -674,6 +741,7 @@ function onInput() {
     badge.textContent = 'Paste an alert to detect format';
     badge.className = 'format-badge';
   }
+  renderStaticPanel(text, fmt);
 }
 
 /* ── Mode ──────────────────────────────────────────────── */
@@ -727,6 +795,269 @@ async function explain() {
     hideLoading();
     showError(err.message || 'Unexpected error. Check your API key and try again.');
   }
+}
+
+/* ══════════════════════════════════════════════════════════
+   STATIC ANALYSIS — no API key needed
+   Runs instantly on paste, per-format field extraction
+   ══════════════════════════════════════════════════════════ */
+
+function staticAnalyze(text, fmt) {
+  if (!text || !fmt || fmt === '📄 Raw Alert') return null;
+  let j = null;
+  try { j = JSON.parse(text); } catch {}
+
+  if (fmt.includes('Vision One'))    return saVisionOne(j, text);
+  if (fmt.includes('CrowdStrike'))   return saCrowdStrike(j);
+  if (fmt.includes('Sentinel'))      return saSentinel(j);
+  if (fmt.includes('Sysmon'))        return saSysmon(j);
+  if (fmt.includes('Windows Event')) return saWindowsEvent(j);
+  if (fmt.includes('Splunk'))        return saSplunk(text);
+  if (j)                             return saGenericJSON(j);
+  return null;
+}
+
+/* ─ Vision One ─────────────────────────────────────────── */
+function saVisionOne(j, text) {
+  if (!j) return null;
+  const mitre = (j.attackTechniques || []).map(t =>
+    typeof t === 'string' ? t : { id: t.id, name: t.name }
+  );
+  const entities = [];
+  (((j.impactScope || {}).entities) || []).forEach(e => {
+    if (e.entityValue) entities.push({ type: e.entityType || 'entity', value: e.entityValue });
+    (e.relatedEntities || []).forEach(r => { if (r) entities.push({ type: 'user', value: String(r) }); });
+  });
+  const iocs = [];
+  (j.indicators || j.iocs || []).forEach(ind => {
+    const t = (ind.type || '').toLowerCase();
+    const v = ind.value || '';
+    if (v) iocs.push({ type: t.includes('ip') ? 'ip' : t.includes('domain') ? 'domain' : t.includes('hash') || t.includes('sha') || t.includes('md5') ? 'hash' : t.includes('url') ? 'url' : t.includes('email') ? 'email' : 'ioc', value: v });
+  });
+  return {
+    fields: [
+      { label: 'Detection',   value: j.workbenchName || j.model || '—' },
+      { label: 'Risk level',  value: (j.riskLevel || j.severity || '—').toUpperCase() },
+      { label: 'Status',      value: j.investigationStatus || '—' },
+      { label: 'Model/Rule',  value: j.model || '—' },
+      { label: 'Provider',    value: j.alertProvider || '—' },
+      { label: 'Workbench ID',value: j.workbenchId || '—', mono: true },
+    ].filter(f => f.value && f.value !== '—'),
+    entities,
+    mitre,
+    iocs
+  };
+}
+
+/* ─ CrowdStrike ─────────────────────────────────────────── */
+function saCrowdStrike(j) {
+  if (!j) return null;
+  const iocs = [];
+  if (j.remote_ip) iocs.push({ type: 'ip',   value: j.remote_ip });
+  if (j.sha256)    iocs.push({ type: 'hash',  value: j.sha256 });
+  if (j.md5)       iocs.push({ type: 'hash',  value: j.md5 });
+  const entities = [];
+  if (j.computer_name) entities.push({ type: 'host', value: j.computer_name });
+  if (j.user_name)     entities.push({ type: 'user', value: j.user_name });
+  const mitre = [];
+  if (j.pattern_id && /^T\d/.test(j.pattern_id)) mitre.push({ id: j.pattern_id, name: j.technique || '' });
+  else if (j.technique) mitre.push({ id: '', name: j.technique });
+  return {
+    fields: [
+      { label: 'Detection',  value: j.description || j.DetectName || '—' },
+      { label: 'Severity',   value: (j.severity_name || j.severity || '—').toUpperCase() },
+      { label: 'Tactic',     value: j.tactic || '—' },
+      { label: 'Local IP',   value: j.local_ip || '—', mono: true },
+    ].filter(f => f.value && f.value !== '—'),
+    entities, mitre, iocs
+  };
+}
+
+/* ─ Sentinel ────────────────────────────────────────────── */
+function saSentinel(j) {
+  if (!j) return null;
+  const entities = [];
+  const iocs = [];
+  (j.Entities || j.entities || []).forEach(e => {
+    const t = (e.Type || e.type || '').toLowerCase();
+    if (t === 'ip' || t === 'ipaddress') { iocs.push({ type: 'ip', value: e.Address || e.address || '' }); }
+    else if (t === 'account') entities.push({ type: 'user', value: e.Name || (e.UPNSuffix ? `${e.Name}@${e.UPNSuffix}` : '') });
+    else if (t === 'host')    entities.push({ type: 'host', value: e.HostName || e.FQDN || '' });
+    else if (t === 'url')     iocs.push({ type: 'url', value: e.Url || '' });
+    else if (t === 'dns' || t === 'dnsresolution') iocs.push({ type: 'domain', value: e.DomainName || '' });
+  });
+  return {
+    fields: [
+      { label: 'Alert name', value: j.AlertName || '—' },
+      { label: 'Severity',   value: (j.Severity || '—').toUpperCase() },
+      { label: 'Status',     value: j.Status || '—' },
+      { label: 'Provider',   value: j.ProviderName || '—' },
+    ].filter(f => f.value && f.value !== '—'),
+    entities: entities.filter(e => e.value),
+    mitre: [],
+    iocs: iocs.filter(i => i.value)
+  };
+}
+
+/* ─ Sysmon ──────────────────────────────────────────────── */
+function saSysmon(j) {
+  if (!j) return null;
+  const mitre = [];
+  if (j.RuleName) {
+    const m = j.RuleName.match(/technique_id=(T[\d.]+)(?:,technique_name=([^,]+))?/);
+    if (m) mitre.push({ id: m[1], name: m[2] || '' });
+  }
+  const iocs = [];
+  const entities = [];
+  if (j.Computer) entities.push({ type: 'host', value: j.Computer });
+  if (j.User)     entities.push({ type: 'user', value: j.User });
+  return {
+    fields: [
+      { label: 'Event ID',   value: j.EventID ? `EventID ${j.EventID}` : '—' },
+      { label: 'Event name', value: j.EventName || '—' },
+      { label: 'Source',     value: j.SourceImage ? j.SourceImage.split('\\').pop() : '—', mono: true },
+      { label: 'Target',     value: j.TargetImage ? j.TargetImage.split('\\').pop() : '—', mono: true },
+    ].filter(f => f.value && f.value !== '—'),
+    entities, mitre, iocs
+  };
+}
+
+/* ─ Windows Event ───────────────────────────────────────── */
+function saWindowsEvent(j) {
+  if (!j) return null;
+  const entities = [];
+  if (j.Computer || j.ComputerName) entities.push({ type: 'host', value: j.Computer || j.ComputerName });
+  if (j.SubjectUserName) entities.push({ type: 'user', value: j.SubjectUserName });
+  if (j.TargetUserName)  entities.push({ type: 'user', value: j.TargetUserName });
+  const iocs = [];
+  if (j.IpAddress && j.IpAddress !== '-') iocs.push({ type: 'ip', value: j.IpAddress });
+  return {
+    fields: [
+      { label: 'Event ID',  value: j.EventID ? `EventID ${j.EventID}` : '—' },
+      { label: 'Task',      value: j.TaskDisplayName || j.Task || '—' },
+      { label: 'Logon type',value: j.LogonType ? `Type ${j.LogonType}` : '—' },
+    ].filter(f => f.value && f.value !== '—'),
+    entities, mitre: [], iocs
+  };
+}
+
+/* ─ Splunk (text) ───────────────────────────────────────── */
+function saSplunk(text) {
+  const kv = {};
+  text.split(/\s+/).forEach(tok => {
+    const m = tok.match(/^([\w_]+)=(.+)$/);
+    if (m) kv[m[1]] = m[2];
+  });
+  const iocs = [];
+  const ip4re = /\b(\d{1,3}(?:\.\d{1,3}){3})\b/g;
+  let m;
+  while ((m = ip4re.exec(text)) !== null) {
+    if (!['127.0.0.1','0.0.0.0','255.255.255.255'].includes(m[1]))
+      iocs.push({ type: 'ip', value: m[1] });
+  }
+  const entities = [];
+  ['Account_Name','user','src_user','dest_user'].forEach(k => { if (kv[k]) entities.push({ type: 'user', value: kv[k] }); });
+  ['host','src_host','dest_host','Computer'].forEach(k => { if (kv[k]) entities.push({ type: 'host', value: kv[k] }); });
+  const fields = [];
+  if (kv.EventCode || kv.EventID)   fields.push({ label: 'Event code', value: `EventCode ${kv.EventCode || kv.EventID}` });
+  if (kv.index || kv.sourcetype)    fields.push({ label: 'Index', value: kv.index || kv.sourcetype });
+  return { fields, entities, mitre: [], iocs };
+}
+
+/* ─ Generic JSON fallback ───────────────────────────────── */
+function saGenericJSON(j) {
+  const text = JSON.stringify(j);
+  const iocs = [];
+  const ip4re = /\b(\d{1,3}(?:\.\d{1,3}){3})\b/g;
+  let m;
+  while ((m = ip4re.exec(text)) !== null) {
+    if (!['127.0.0.1','0.0.0.0'].includes(m[1])) iocs.push({ type: 'ip', value: m[1] });
+  }
+  const hashRe = /\b([a-fA-F0-9]{32}|[a-fA-F0-9]{40}|[a-fA-F0-9]{64})\b/g;
+  while ((m = hashRe.exec(text)) !== null) iocs.push({ type: 'hash', value: m[1] });
+  if (!iocs.length) return null;
+  return { fields: [], entities: [], mitre: [], iocs };
+}
+
+/* ─ Render static panel ─────────────────────────────────── */
+function renderStaticPanel(text, fmt) {
+  const panel = document.getElementById('static-panel');
+  const body  = document.getElementById('static-body');
+
+  if (!text.trim() || !fmt || fmt === '📄 Raw Alert') {
+    panel.style.display = 'none'; return;
+  }
+
+  const data = staticAnalyze(text, fmt);
+  if (!data) { panel.style.display = 'none'; return; }
+
+  const { fields = [], entities = [], mitre = [], iocs = [] } = data;
+  const hasContent = fields.length || entities.length || mitre.length || iocs.length;
+  if (!hasContent) { panel.style.display = 'none'; return; }
+
+  const hasKey = !!(document.getElementById('api-key-input')?.value.trim() ||
+                    localStorage.getItem('cv_oai_key'));
+
+  let html = '';
+
+  // Fields grid
+  if (fields.length) {
+    html += `<div class="static-grid">` +
+      fields.map(f => `
+        <div class="static-field">
+          <div class="static-field-label">${esc(f.label)}</div>
+          <div class="static-field-value${f.mono?' mono-sm':''}">${esc(f.value)}</div>
+        </div>`).join('') +
+    `</div>`;
+  }
+
+  // Entities
+  if (entities.length) {
+    if (fields.length) html += `<hr class="static-divider">`;
+    html += `<div class="static-grid">` +
+      entities.filter((e,i,a) => a.findIndex(x=>x.value===e.value)===i).map(e => `
+        <div class="static-field">
+          <div class="static-field-label">${esc(e.type)}</div>
+          <div class="static-field-value mono-sm">${esc(e.value)}</div>
+        </div>`).join('') +
+    `</div>`;
+  }
+
+  // MITRE
+  if (mitre.length) {
+    html += `<hr class="static-divider"><div class="static-mitre">` +
+      mitre.map(t => {
+        const id   = t.id   || '';
+        const name = t.name || '';
+        const url  = id ? `https://attack.mitre.org/techniques/${id.replace('.','/').replace('.','/') }/` : '#';
+        const label = [id, name].filter(Boolean).join(' — ') || id;
+        return `<a class="static-mitre-chip" href="${url}" target="_blank" rel="noopener" title="View on MITRE ATT&CK">${esc(label)}</a>`;
+      }).join('') +
+    `</div>`;
+  }
+
+  // IOCs
+  const uniqIOCs = iocs.filter((io,i,a) => io.value && a.findIndex(x=>x.value===io.value)===i);
+  if (uniqIOCs.length) {
+    html += `<hr class="static-divider"><div class="static-ioc-row">` +
+      uniqIOCs.map(i => `
+        <div class="ioc-chip">
+          <span class="ioc-type">${esc(i.type)}</span>
+          <span style="font-size:.78rem">${esc(i.value)}</span>
+          ${isPivotable(i.type) ? `<button class="ioc-pivot-btn" onclick="pivotIOC('${esc(i.value)}')" title="Open in IOC Pivot Hub">↗ Pivot</button>` : ''}
+        </div>`).join('') +
+    `</div>`;
+  }
+
+  // AI nudge if no key
+  if (!hasKey) {
+    html += `<div class="static-ai-nudge">
+      🤖 <span>Add an <a href="#" onclick="document.getElementById('api-key-input').focus();return false;">OpenAI key</a> for full AI analysis — severity assessment, investigation steps, false positive likelihood.</span>
+    </div>`;
+  }
+
+  body.innerHTML = html;
+  panel.style.display = 'block';
 }
 
 /* ── Vision One parser ─────────────────────────────────── */
@@ -1088,8 +1419,17 @@ function openSigmaGenerator() {
 
 function showLoading() { document.getElementById('status-bar').style.display = 'block'; document.getElementById('explain-btn').disabled = true; }
 function hideLoading()  { document.getElementById('status-bar').style.display = 'none';  document.getElementById('explain-btn').disabled = false; }
-function showResults()  { document.getElementById('results').style.display = 'block'; }
-function hideResults()  { document.getElementById('results').style.display = 'none'; }
+function showResults()  {
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('static-panel').style.display = 'none'; // AI supersedes static
+}
+function hideResults()  {
+  document.getElementById('results').style.display = 'none';
+  // Re-show static panel if there's still content in the textarea
+  const text = document.getElementById('alert-input').value;
+  const fmt  = detectFormat(text);
+  if (text) renderStaticPanel(text, fmt);
+}
 function showError(msg) { const el = document.getElementById('error-box'); el.textContent = '⚠️ ' + msg; el.style.display = 'block'; }
 function hideError()    { document.getElementById('error-box').style.display = 'none'; }
 
