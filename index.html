@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alert Explainer — Understand any SIEM alert instantly</title>
+  <meta name="description" content="Paste any SIEM alert — CrowdStrike, Sentinel, Splunk, QRadar, Sysmon. Get plain-English summary, real severity, MITRE ATT&CK mapping, and investigation steps. 100% client-side.">
+  <style>
+    :root {
+      --bg0:#0d1117; --bg1:#161b22; --bg2:#21262d; --bg3:#30363d;
+      --text0:#e6edf3; --text1:#c9d1d9; --text2:#8b949e; --text3:#484f58;
+      --accent:#58a6ff; --accent2:#1f6feb;
+      --green:#3fb950; --red:#f85149; --orange:#d29922; --yellow:#e3b341;
+      --purple:#bc8cff; --teal:#39d353; --pink:#f778ba;
+      --border:#30363d; --border2:#21262d;
+      --radius:8px; --radius-lg:12px;
+      --font:'Segoe UI',system-ui,-apple-system,sans-serif;
+      --mono:'Cascadia Code','Fira Code','Consolas',monospace;
+    }
+    *{ box-sizing:border-box; margin:0; padding:0; }
+    body{ font-family:var(--font); background:var(--bg0); color:var(--text1); min-height:100vh; line-height:1.6; }
+
+    /* ── Header ─────────────────────────────────────── */
+    header{
+      background:var(--bg1); border-bottom:1px solid var(--border);
+      padding:.85rem 1.5rem; display:flex; align-items:center;
+      justify-content:space-between; gap:1rem; flex-wrap:wrap;
+      position:sticky; top:0; z-index:100;
+    }
+    .logo{ font-size:1.25rem; font-weight:700; color:var(--text0); letter-spacing:-.5px; }
+    .logo span{ color:var(--red); }
+    .tagline{ font-size:.76rem; color:var(--text2); }
+    .header-right{ display:flex; gap:.5rem; align-items:center; }
+
+    /* ── Mode toggle ─────────────────────────────────── */
+    .mode-toggle{
+      display:flex; background:var(--bg2); border:1px solid var(--border);
+      border-radius:var(--radius); overflow:hidden;
+    }
+    .mode-btn{
+      padding:.3rem .85rem; font-size:.78rem; font-weight:600;
+      cursor:pointer; border:none; background:transparent; color:var(--text2);
+      transition:all .15s;
+    }
+    .mode-btn.active{ background:var(--accent2); color:#fff; }
+
+    /* ── Buttons ─────────────────────────────────────── */
+    .btn-ghost{
+      background:transparent; border:1px solid var(--border);
+      color:var(--text2); padding:.3rem .7rem; border-radius:var(--radius);
+      font-size:.78rem; cursor:pointer; transition:all .15s; text-decoration:none;
+      display:inline-flex; align-items:center; gap:.3rem;
+    }
+    .btn-ghost:hover{ border-color:var(--accent); color:var(--accent); }
+    .btn-primary{
+      background:var(--red); border:none; color:#fff;
+      font-size:.9rem; font-weight:700; padding:.65rem 1.4rem;
+      border-radius:var(--radius); cursor:pointer; transition:all .15s;
+      display:inline-flex; align-items:center; gap:.4rem;
+    }
+    .btn-primary:hover{ background:#ff6b6b; }
+    .btn-primary:disabled{ opacity:.45; cursor:not-allowed; }
+    .btn-sm{
+      background:var(--bg2); border:1px solid var(--border);
+      color:var(--text2); font-size:.78rem; padding:.3rem .7rem;
+      border-radius:var(--radius); cursor:pointer; transition:all .15s;
+      display:inline-flex; align-items:center; gap:.3rem;
+    }
+    .btn-sm:hover{ border-color:var(--accent); color:var(--accent); }
+
+    /* ── Main ────────────────────────────────────────── */
+    main{ max-width:960px; margin:0 auto; padding:1.75rem 1.5rem; }
+
+    /* ── Input card ──────────────────────────────────── */
+    .input-card{
+      background:var(--bg1); border:1px solid var(--border);
+      border-radius:var(--radius-lg); padding:1.25rem 1.5rem;
+      margin-bottom:1.25rem;
+    }
+    .input-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:.75rem; flex-wrap:wrap; gap:.5rem; }
+    .format-badge{
+      font-size:.72rem; font-weight:700; letter-spacing:.04em;
+      padding:.2rem .7rem; border-radius:20px;
+      background:var(--bg3); border:1px solid var(--border); color:var(--text2);
+      transition:all .2s;
+    }
+    .format-badge.detected{ background:color-mix(in srgb,var(--green) 12%,var(--bg2)); border-color:color-mix(in srgb,var(--green) 35%,var(--border)); color:var(--green); }
+    .alert-textarea{
+      width:100%; min-height:180px; max-height:400px;
+      background:var(--bg2); border:1px solid var(--border);
+      color:var(--text0); font-family:var(--mono); font-size:.82rem;
+      padding:.85rem 1rem; border-radius:var(--radius);
+      resize:vertical; outline:none; transition:border-color .15s; line-height:1.5;
+    }
+    .alert-textarea:focus{ border-color:var(--red); }
+    .alert-textarea::placeholder{ color:var(--text3); }
+    .input-actions{ display:flex; gap:.5rem; margin-top:.85rem; flex-wrap:wrap; align-items:center; }
+    .examples-select{
+      background:var(--bg2); border:1px solid var(--border);
+      color:var(--text1); font-size:.78rem; padding:.3rem .6rem;
+      border-radius:var(--radius); outline:none; cursor:pointer;
+    }
+    .examples-select:focus{ border-color:var(--accent); }
+
+    /* API key row */
+    .apikey-row{
+      margin-top:.85rem; padding-top:.85rem; border-top:1px solid var(--border2);
+      display:flex; align-items:center; gap:.75rem; flex-wrap:wrap;
+    }
+    .apikey-label{ font-size:.76rem; color:var(--text2); white-space:nowrap; }
+    .apikey-input{
+      flex:1; min-width:180px; background:var(--bg2); border:1px solid var(--border);
+      color:var(--text0); font-family:var(--mono); font-size:.78rem;
+      padding:.38rem .75rem; border-radius:var(--radius); outline:none; transition:border-color .15s;
+    }
+    .apikey-input:focus{ border-color:var(--red); }
+    .model-select{
+      background:var(--bg2); border:1px solid var(--border);
+      color:var(--text1); font-size:.76rem; padding:.35rem .55rem;
+      border-radius:var(--radius); outline:none; cursor:pointer;
+    }
+
+    /* ── Status ──────────────────────────────────────── */
+    #status-bar{ text-align:center; padding:2rem 1rem; display:none; }
+    .spinner{
+      width:32px; height:32px; border:3px solid var(--border);
+      border-top-color:var(--red); border-radius:50%;
+      animation:spin .7s linear infinite; margin:0 auto 1rem;
+    }
+    @keyframes spin{ to{ transform:rotate(360deg); } }
+
+    /* ── Error ───────────────────────────────────────── */
+    #error-box{
+      background:color-mix(in srgb,var(--red) 10%,var(--bg1));
+      border:1px solid color-mix(in srgb,var(--red) 35%,var(--border));
+      border-radius:var(--radius); padding:.85rem 1.1rem;
+      color:var(--red); font-size:.86rem; display:none; margin-bottom:1.25rem;
+    }
+
+    /* ── Results ─────────────────────────────────────── */
+    #results{ display:none; }
+    .results-header{
+      display:flex; align-items:center; justify-content:space-between;
+      margin-bottom:1rem; flex-wrap:wrap; gap:.5rem;
+    }
+    .source-badge{
+      font-size:.72rem; font-weight:700; letter-spacing:.04em;
+      padding:.25rem .8rem; border-radius:20px;
+      background:color-mix(in srgb,var(--accent) 12%,var(--bg2));
+      border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border));
+      color:var(--accent);
+    }
+
+    /* ── Section card ────────────────────────────────── */
+    .section{
+      background:var(--bg1); border:1px solid var(--border);
+      border-radius:var(--radius-lg); padding:1.1rem 1.35rem;
+      margin-bottom:.85rem;
+    }
+    .section-title{
+      font-size:.74rem; text-transform:uppercase; letter-spacing:.8px;
+      color:var(--text2); font-weight:700; margin-bottom:.85rem;
+      display:flex; align-items:center; gap:.5rem;
+    }
+
+    /* ── Summary ─────────────────────────────────────── */
+    .summary-text{
+      font-size:.95rem; color:var(--text0); line-height:1.7;
+      border-left:3px solid var(--red); padding-left:1rem;
+    }
+
+    /* ── Severity row ────────────────────────────────── */
+    .sev-row{ display:flex; gap:1.5rem; flex-wrap:wrap; }
+    .sev-item{ }
+    .sev-label{ font-size:.7rem; text-transform:uppercase; letter-spacing:.5px; color:var(--text2); margin-bottom:.3rem; }
+    .sev-badge{
+      display:inline-flex; align-items:center; gap:.35rem;
+      padding:.3rem .85rem; border-radius:6px;
+      font-size:.82rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
+    }
+    .sev-critical{ background:color-mix(in srgb,#ff4444 18%,var(--bg2)); color:#ff4444; border:1px solid color-mix(in srgb,#ff4444 40%,var(--bg2)); }
+    .sev-high    { background:color-mix(in srgb,var(--red) 15%,var(--bg2)); color:var(--red); border:1px solid color-mix(in srgb,var(--red) 35%,var(--bg2)); }
+    .sev-medium  { background:color-mix(in srgb,var(--orange) 15%,var(--bg2)); color:var(--orange); border:1px solid color-mix(in srgb,var(--orange) 35%,var(--bg2)); }
+    .sev-low     { background:color-mix(in srgb,var(--green) 12%,var(--bg2)); color:var(--green); border:1px solid color-mix(in srgb,var(--green) 30%,var(--bg2)); }
+    .sev-info    { background:color-mix(in srgb,var(--accent) 12%,var(--bg2)); color:var(--accent); border:1px solid color-mix(in srgb,var(--accent) 30%,var(--bg2)); }
+    .sev-reasoning{ font-size:.82rem; color:var(--text2); margin-top:.6rem; line-height:1.5; }
+
+    /* ── MITRE ───────────────────────────────────────── */
+    .mitre-list{ display:flex; flex-direction:column; gap:.5rem; }
+    .mitre-item{
+      display:flex; align-items:flex-start; gap:.75rem;
+      padding:.55rem .85rem; background:var(--bg2);
+      border-radius:var(--radius); border-left:2px solid var(--purple);
+    }
+    .mitre-id{
+      font-family:var(--mono); font-size:.78rem; font-weight:700;
+      color:var(--purple); white-space:nowrap; flex-shrink:0;
+      padding:.1rem .4rem; background:color-mix(in srgb,var(--purple) 10%,var(--bg2));
+      border-radius:4px;
+    }
+    .mitre-name{ font-size:.84rem; color:var(--text0); font-weight:600; }
+    .mitre-evidence{ font-size:.78rem; color:var(--text2); margin-top:.15rem; }
+    .mitre-conf{
+      font-size:.65rem; font-weight:700; margin-left:auto; flex-shrink:0; self-align:flex-start;
+      padding:.1rem .45rem; border-radius:20px; text-transform:uppercase; letter-spacing:.04em;
+    }
+    .conf-high  { background:color-mix(in srgb,var(--red) 15%,var(--bg2)); color:var(--red); }
+    .conf-medium{ background:color-mix(in srgb,var(--orange) 15%,var(--bg2)); color:var(--orange); }
+    .conf-low   { background:color-mix(in srgb,var(--text2) 15%,var(--bg2)); color:var(--text2); }
+
+    /* ── IOCs ────────────────────────────────────────── */
+    .ioc-list{ display:flex; flex-wrap:wrap; gap:.5rem; }
+    .ioc-chip{
+      display:inline-flex; align-items:center; gap:.5rem;
+      background:var(--bg2); border:1px solid var(--border);
+      border-radius:var(--radius); padding:.3rem .75rem;
+      font-family:var(--mono); font-size:.78rem; color:var(--text1);
+      transition:all .15s;
+    }
+    .ioc-type{ font-size:.65rem; font-weight:700; text-transform:uppercase; color:var(--text3); }
+    .ioc-pivot-btn{
+      font-size:.68rem; font-weight:700; color:var(--accent); cursor:pointer;
+      background:none; border:none; padding:0; text-decoration:underline;
+      text-underline-offset:2px;
+    }
+    .ioc-pivot-btn:hover{ color:var(--text0); }
+
+    /* ── Steps ───────────────────────────────────────── */
+    .steps-list{ list-style:none; display:flex; flex-direction:column; gap:.5rem; counter-reset:steps; }
+    .steps-list li{
+      counter-increment:steps;
+      display:flex; gap:.75rem; align-items:flex-start;
+      padding:.55rem .85rem; background:var(--bg2);
+      border-radius:var(--radius); font-size:.86rem; color:var(--text1); line-height:1.5;
+    }
+    .steps-list li::before{
+      content:counter(steps);
+      background:var(--red); color:#fff; font-size:.72rem; font-weight:700;
+      width:20px; height:20px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:.05rem;
+    }
+
+    /* ── Actions ─────────────────────────────────────── */
+    .actions-list{ list-style:none; display:flex; flex-direction:column; gap:.4rem; }
+    .actions-list li{
+      display:flex; gap:.6rem; align-items:flex-start;
+      font-size:.86rem; color:var(--text1); padding:.4rem .6rem;
+      border-radius:6px; line-height:1.5;
+    }
+    .action-icon{ flex-shrink:0; margin-top:.05rem; }
+
+    /* ── FP likelihood ───────────────────────────────── */
+    .fp-row{ display:flex; align-items:center; gap:1rem; flex-wrap:wrap; }
+    .fp-badge{
+      padding:.3rem .85rem; border-radius:6px; font-size:.8rem; font-weight:700;
+      text-transform:uppercase; letter-spacing:.05em;
+    }
+    .fp-low   { background:color-mix(in srgb,var(--red) 15%,var(--bg2)); color:var(--red); border:1px solid color-mix(in srgb,var(--red) 35%,var(--bg2)); }
+    .fp-medium{ background:color-mix(in srgb,var(--orange) 15%,var(--bg2)); color:var(--orange); border:1px solid color-mix(in srgb,var(--orange) 35%,var(--bg2)); }
+    .fp-high  { background:color-mix(in srgb,var(--green) 12%,var(--bg2)); color:var(--green); border:1px solid color-mix(in srgb,var(--green) 30%,var(--bg2)); }
+    .fp-reason{ font-size:.82rem; color:var(--text2); line-height:1.5; }
+
+    /* ── Junior tip box ──────────────────────────────── */
+    .junior-box{
+      background:color-mix(in srgb,var(--yellow) 8%,var(--bg1));
+      border:1px solid color-mix(in srgb,var(--yellow) 30%,var(--border));
+      border-radius:var(--radius); padding:.85rem 1rem; margin-top:.85rem;
+      font-size:.83rem; color:var(--text1); line-height:1.6;
+    }
+    .junior-box-title{ font-weight:700; color:var(--yellow); margin-bottom:.35rem; font-size:.8rem; }
+
+    /* ── No-key notice ───────────────────────────────── */
+    .no-key-notice{
+      background:color-mix(in srgb,var(--accent) 8%,var(--bg1));
+      border:1px dashed color-mix(in srgb,var(--accent) 35%,var(--border));
+      border-radius:var(--radius-lg); padding:1.1rem 1.35rem; text-align:center;
+      margin-bottom:.85rem;
+    }
+    .no-key-title{ font-size:.9rem; font-weight:600; color:var(--text0); margin-bottom:.3rem; }
+    .no-key-sub{ font-size:.8rem; color:var(--text2); }
+
+    /* ── Toast ───────────────────────────────────────── */
+    #toast{
+      position:fixed; bottom:1.5rem; left:50%; transform:translateX(-50%) translateY(60px);
+      background:var(--bg2); border:1px solid var(--border);
+      color:var(--text0); padding:.5rem 1.2rem; border-radius:20px;
+      font-size:.83rem; transition:transform .25s; z-index:9999; white-space:nowrap;
+      pointer-events:none;
+    }
+    #toast.show{ transform:translateX(-50%) translateY(0); }
+
+    /* ── Footer ──────────────────────────────────────── */
+    footer{
+      text-align:center; padding:1.75rem 1rem;
+      font-size:.73rem; color:var(--text3); border-top:1px solid var(--border2);
+      margin-top:2rem;
+    }
+    footer a{ color:var(--text3); text-decoration:none; }
+    footer a:hover{ color:var(--accent); }
+
+    @media(max-width:580px){
+      header{ padding:.7rem 1rem; }
+      main{ padding:1.1rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────── -->
+<header>
+  <div>
+    <div class="logo">🚨 Alert <span>Explainer</span></div>
+    <div class="tagline">Understand any SIEM alert instantly</div>
+  </div>
+  <div class="header-right">
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="btn-junior" onclick="setMode('junior')">🎓 Junior</button>
+      <button class="mode-btn" id="btn-expert" onclick="setMode('expert')">⚡ Expert</button>
+    </div>
+    <a class="btn-ghost" href="https://dgiry.github.io/ioc-pivot" target="_blank" rel="noopener">🔭 IOC Pivot</a>
+    <a class="btn-ghost" href="https://github.com/dgiry/alert-explainer" target="_blank" rel="noopener">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
+  </div>
+</header>
+
+<!-- ── Main ────────────────────────────────────────────── -->
+<main>
+
+  <!-- Input card -->
+  <div class="input-card">
+    <div class="input-top">
+      <div style="display:flex;align-items:center;gap:.6rem">
+        <span class="format-badge" id="format-badge">Paste an alert to detect format</span>
+      </div>
+      <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+        <button class="btn-sm" onclick="clearInput()">🗑 Clear</button>
+        <button class="btn-sm" onclick="copyReport()" id="copy-report-btn" style="display:none">📋 Copy report</button>
+      </div>
+    </div>
+
+    <textarea
+      id="alert-input"
+      class="alert-textarea"
+      placeholder="Paste any SIEM alert here — JSON, raw log, Splunk event, CrowdStrike detection, Sentinel alert, Sysmon event…"
+      oninput="onInput()"
+      spellcheck="false"
+    ></textarea>
+
+    <div class="input-actions">
+      <button class="btn-primary" id="explain-btn" onclick="explain()">🔍 Explain this alert</button>
+      <select class="examples-select" id="examples-select" onchange="loadExample(this.value)">
+        <option value="">📋 Load example…</option>
+        <option value="crowdstrike">CrowdStrike — PowerShell detection</option>
+        <option value="sentinel">Microsoft Sentinel — Brute force</option>
+        <option value="splunk">Splunk — Lateral movement</option>
+        <option value="sysmon">Sysmon — Process injection</option>
+      </select>
+    </div>
+
+    <!-- API key -->
+    <div class="apikey-row">
+      <span class="apikey-label">🤖 OpenAI key</span>
+      <input id="api-key-input" class="apikey-input" type="password"
+             placeholder="sk-... (required for AI analysis)"
+             autocomplete="off"/>
+      <select id="model-select" class="model-select">
+        <option value="gpt-4o-mini">gpt-4o-mini (fast)</option>
+        <option value="gpt-4o">gpt-4o (best)</option>
+      </select>
+      <span style="font-size:.7rem;color:var(--text3)">Key stored locally only</span>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div id="error-box"></div>
+
+  <!-- Loading -->
+  <div id="status-bar">
+    <div class="spinner"></div>
+    <div style="color:var(--text2);font-size:.88rem">Analyzing alert…</div>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <div class="results-header">
+      <span class="source-badge" id="r-source">Unknown source</span>
+      <div style="display:flex;gap:.5rem">
+        <span id="r-mode-label" style="font-size:.72rem;color:var(--text3)"></span>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="section">
+      <div class="section-title">📝 What happened</div>
+      <div id="r-summary" class="summary-text"></div>
+      <div id="r-junior-what" class="junior-box" style="display:none">
+        <div class="junior-box-title">💡 What does this mean?</div>
+        <div id="r-junior-what-text"></div>
+      </div>
+    </div>
+
+    <!-- Severity -->
+    <div class="section">
+      <div class="section-title">⚠️ Severity Assessment</div>
+      <div class="sev-row">
+        <div class="sev-item">
+          <div class="sev-label">Alert severity</div>
+          <span id="r-sev-original" class="sev-badge">—</span>
+        </div>
+        <div style="display:flex;align-items:center;color:var(--text3);font-size:.9rem">→</div>
+        <div class="sev-item">
+          <div class="sev-label">Real-world severity</div>
+          <span id="r-sev-real" class="sev-badge">—</span>
+        </div>
+      </div>
+      <div id="r-sev-reasoning" class="sev-reasoning"></div>
+    </div>
+
+    <!-- MITRE ATT&CK -->
+    <div class="section">
+      <div class="section-title">🎯 MITRE ATT&CK</div>
+      <div id="r-mitre" class="mitre-list"></div>
+    </div>
+
+    <!-- IOCs -->
+    <div id="ioc-section" class="section" style="display:none">
+      <div class="section-title">🔍 IOCs Extracted
+        <a href="https://dgiry.github.io/ioc-pivot" target="_blank" rel="noopener"
+           style="font-size:.68rem;color:var(--accent);text-decoration:none;font-weight:400;letter-spacing:0;text-transform:none;margin-left:auto">
+          🔭 Pivot all →
+        </a>
+      </div>
+      <div id="r-iocs" class="ioc-list"></div>
+    </div>
+
+    <!-- Investigation steps -->
+    <div class="section">
+      <div class="section-title">🔎 Investigation Steps</div>
+      <ol id="r-steps" class="steps-list"></ol>
+      <div id="r-junior-escalate" class="junior-box" style="display:none">
+        <div class="junior-box-title">📞 When to escalate</div>
+        <div id="r-junior-escalate-text"></div>
+      </div>
+    </div>
+
+    <!-- Recommended actions -->
+    <div class="section">
+      <div class="section-title">🛡️ Recommended Actions</div>
+      <ul id="r-actions" class="actions-list"></ul>
+    </div>
+
+    <!-- False positive -->
+    <div class="section">
+      <div class="section-title">🎭 False Positive Likelihood</div>
+      <div class="fp-row">
+        <span id="r-fp-badge" class="fp-badge">—</span>
+        <span id="r-fp-reason" class="fp-reason"></span>
+      </div>
+    </div>
+
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<footer>
+  <a href="https://dgiry.github.io/alert-explainer">Alert Explainer</a> ·
+  <a href="https://dgiry.github.io/ioc-pivot">IOC Pivot Hub</a> ·
+  <a href="https://dgiry.github.io/cve-enricher">CVE Enricher</a> ·
+  <a href="https://dgiry.github.io/defang-ioc">Defang IOC</a> ·
+  100% client-side · MIT License
+</footer>
+
+<script>
+'use strict';
+
+/* ── State ─────────────────────────────────────────────── */
+let mode = 'junior'; // junior | expert
+let lastResult = null;
+
+/* ── Sample alerts ─────────────────────────────────────── */
+const EXAMPLES = {
+  crowdstrike: JSON.stringify({
+    event_type: "DetectionSummaryEvent",
+    timestamp: "2024-01-15T14:23:11Z",
+    severity: "High",
+    severity_name: "High",
+    technique: "PowerShell",
+    pattern_id: "T1059.001",
+    computer_name: "WORKSTATION-042",
+    user_name: "jsmith",
+    cmdline: "powershell.exe -NoP -NonI -W Hidden -Exec Bypass -Enc JABzAD0ATgBlAHcALQBPAGIAagBlAGMAdAAgAFMAeQBzAHQAZQBtAC4ATgBlAHQALgBXAGUAYgBDAGwAaQBlAG4AdAA=",
+    sha256: "3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4",
+    parent_process: "explorer.exe",
+    local_ip: "192.168.10.42",
+    remote_ip: "185.220.101.45",
+    remote_port: 4444,
+    tactic: "Execution",
+    description: "Encoded PowerShell command detected with execution bypass flags"
+  }, null, 2),
+
+  sentinel: JSON.stringify({
+    AlertName: "Successful brute force attack",
+    Severity: "Medium",
+    Status: "New",
+    TimeGenerated: "2024-01-15T09:11:44Z",
+    Description: "Multiple failed login attempts followed by successful authentication from unusual location",
+    Entities: [
+      { Type: "Account", Name: "administrator", UPNSuffix: "contoso.com" },
+      { Type: "IP", Address: "91.108.4.135", Location: { CountryCode: "RU", City: "Moscow" } },
+      { Type: "Host", HostName: "DC01", OSFamily: "Windows" }
+    ],
+    ExtendedProperties: {
+      FailedAttempts: "47",
+      SuccessfulLogin: "true",
+      AuthenticationMethod: "Password",
+      UserAgent: "python-requests/2.28.0"
+    },
+    WorkspaceId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    ProviderName: "Microsoft Defender for Identity"
+  }, null, 2),
+
+  splunk: `index=wineventlog EventCode=4648
+host=FILESERVER-01 source=WinEventLog:Security
+TimeGenerated=2024-01-15 16:42:03
+EventCode=4648
+Account_Name=svc_backup
+Account_Domain=CORP
+Target_Server_Name=DC01.corp.local
+Target_Account_Name=Administrator
+Process_Name=C:\\Windows\\System32\\cmd.exe
+Network_Address=192.168.1.105
+Failure_Reason=-
+Logon_Process=seclogo
+Authentication_Package=NTLM
+Message=A logon was attempted using explicit credentials.
+Subject: svc_backup used explicit credentials to log on as Administrator on DC01`,
+
+  sysmon: JSON.stringify({
+    EventID: 8,
+    EventName: "CreateRemoteThread",
+    UtcTime: "2024-01-15T17:55:32.190Z",
+    SourceImage: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    SourceProcessId: 4812,
+    SourceProcessGuid: "{a1b2c3d4-1234-5678-abcd-ef1234567890}",
+    TargetImage: "C:\\Windows\\System32\\lsass.exe",
+    TargetProcessId: 688,
+    StartFunction: "LoadLibraryA",
+    StartModule: "C:\\Windows\\System32\\ntdll.dll",
+    User: "CORP\\jdoe",
+    Computer: "LAPTOP-1337",
+    RuleName: "technique_id=T1055,technique_name=Process Injection"
+  }, null, 2)
+};
+
+/* ── Format detection ──────────────────────────────────── */
+function detectFormat(text) {
+  if (!text.trim()) return null;
+  try {
+    const j = JSON.parse(text);
+    if (j.event_type === 'DetectionSummaryEvent' || j.pattern_id || j.technique && j.computer_name) return '🦅 CrowdStrike';
+    if (j.AlertName || j.WorkspaceId || j.ProviderName?.includes('Microsoft')) return '☁️ Microsoft Sentinel';
+    if (j.EventID === 8 || j.EventName === 'CreateRemoteThread' || j.SourceImage) return '🔵 Sysmon';
+    if (j.EventID || j.EventName) return '🪟 Windows Event';
+    if (j.alert_id || j.vendor === 'elastic') return '🟡 Elastic';
+    if (j.type === 'alert' || j.offense_id) return '🟣 QRadar';
+    return '📄 JSON Alert';
+  } catch {}
+  if (/index=\w+.*EventCode|WinEventLog/i.test(text)) return '🔵 Splunk';
+  if (/CEF:\d+/i.test(text)) return '📋 CEF';
+  if (/LEEF:\d+/i.test(text)) return '📋 LEEF';
+  if (/syslog|facility|severity.*\d+/i.test(text)) return '📋 Syslog';
+  if (/EventCode|EventID|WinEvent/i.test(text)) return '🪟 Windows Event';
+  return '📄 Raw Alert';
+}
+
+function onInput() {
+  const text = document.getElementById('alert-input').value;
+  const fmt = detectFormat(text);
+  const badge = document.getElementById('format-badge');
+  if (fmt) {
+    badge.textContent = fmt;
+    badge.className = 'format-badge detected';
+  } else {
+    badge.textContent = 'Paste an alert to detect format';
+    badge.className = 'format-badge';
+  }
+}
+
+/* ── Mode ──────────────────────────────────────────────── */
+function setMode(m) {
+  mode = m;
+  document.getElementById('btn-junior').className = 'mode-btn' + (m === 'junior' ? ' active' : '');
+  document.getElementById('btn-expert').className = 'mode-btn' + (m === 'expert' ? ' active' : '');
+  if (lastResult) renderResults(lastResult);
+}
+
+/* ── Examples ──────────────────────────────────────────── */
+function loadExample(key) {
+  if (!key) return;
+  document.getElementById('alert-input').value = EXAMPLES[key] || '';
+  document.getElementById('examples-select').value = '';
+  onInput();
+}
+
+function clearInput() {
+  document.getElementById('alert-input').value = '';
+  document.getElementById('format-badge').textContent = 'Paste an alert to detect format';
+  document.getElementById('format-badge').className = 'format-badge';
+  hideResults();
+  hideError();
+  lastResult = null;
+  document.getElementById('copy-report-btn').style.display = 'none';
+}
+
+/* ── Explain ───────────────────────────────────────────── */
+async function explain() {
+  const text = document.getElementById('alert-input').value.trim();
+  if (!text) { showError('Please paste an alert first — or load an example.'); return; }
+
+  const apiKey = document.getElementById('api-key-input').value.trim();
+  if (!apiKey) { showError('An OpenAI API key is required. Add it in the field below.'); return; }
+
+  const model = document.getElementById('model-select').value;
+  const fmt   = detectFormat(text) || 'Unknown';
+
+  hideError();
+  hideResults();
+  showLoading();
+
+  try {
+    const result = await callAI(text, fmt, apiKey, model);
+    lastResult = result;
+    hideLoading();
+    renderResults(result);
+    document.getElementById('copy-report-btn').style.display = 'inline-flex';
+  } catch(err) {
+    hideLoading();
+    showError(err.message || 'Unexpected error. Check your API key and try again.');
+  }
+}
+
+/* ── AI call ───────────────────────────────────────────── */
+async function callAI(alertText, fmt, apiKey, model) {
+  const modeInstruction = mode === 'junior'
+    ? 'The user is a junior SOC analyst. Use simple language, explain technical terms, add "what_this_means_junior" and "when_to_escalate" fields with beginner-friendly guidance.'
+    : 'The user is a senior SOC analyst or detection engineer. Be concise and technical. Skip basic explanations.';
+
+  const prompt = `You are a senior SOC analyst and threat intelligence expert. Analyze the following SIEM alert and respond ONLY with a valid JSON object.
+
+Alert format detected: ${fmt}
+${modeInstruction}
+
+Alert content:
+\`\`\`
+${alertText.substring(0, 4000)}
+\`\`\`
+
+Return exactly this JSON structure (no markdown, no explanation):
+{
+  "source": "vendor/platform name e.g. CrowdStrike, Microsoft Sentinel, Splunk, Sysmon",
+  "summary": "2-3 sentence plain-English summary: what happened, on which system, who was involved",
+  "severity": {
+    "original": "the severity from the alert (Critical/High/Medium/Low/Info or N/A)",
+    "real": "your assessed real-world severity (Critical/High/Medium/Low/Info)",
+    "reasoning": "1-2 sentences — is the real severity higher or lower than stated? Why?"
+  },
+  "mitre_techniques": [
+    {"id": "T1059.001", "name": "PowerShell", "confidence": "high|medium|low", "evidence": "brief evidence from the alert"}
+  ],
+  "iocs": [
+    {"type": "ip|domain|hash|url|email|username|hostname", "value": "the IOC value"}
+  ],
+  "investigation_steps": [
+    "Step 1: ...",
+    "Step 2: ..."
+  ],
+  "recommended_actions": [
+    "Immediately isolate host WORKSTATION-042",
+    "Reset credentials for jsmith"
+  ],
+  "false_positive_likelihood": "low|medium|high",
+  "false_positive_reason": "1-2 sentences explaining the FP assessment"${mode === 'junior' ? `,
+  "what_this_means_junior": "Simple explanation of why this alert is serious or not — as if explaining to someone new to security",
+  "when_to_escalate": "Clear guidance: when should a junior analyst escalate this? What are the red flags?"` : ''}
+}`;
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.2
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`OpenAI: ${err.error?.message || res.status}`);
+  }
+
+  const data = await res.json();
+  const raw = data.choices?.[0]?.message?.content || '{}';
+  try { return JSON.parse(raw); }
+  catch { throw new Error('AI returned invalid JSON. Try again.'); }
+}
+
+/* ── Render ────────────────────────────────────────────── */
+function renderResults(r) {
+  // Source
+  document.getElementById('r-source').textContent = r.source || 'Unknown source';
+  document.getElementById('r-mode-label').textContent = mode === 'junior' ? '🎓 Junior mode' : '⚡ Expert mode';
+
+  // Summary
+  document.getElementById('r-summary').textContent = r.summary || '';
+  const jrWhat = document.getElementById('r-junior-what');
+  const jrWhatTxt = document.getElementById('r-junior-what-text');
+  if (mode === 'junior' && r.what_this_means_junior) {
+    jrWhat.style.display = 'block';
+    jrWhatTxt.textContent = r.what_this_means_junior;
+  } else { jrWhat.style.display = 'none'; }
+
+  // Severity
+  const sev = r.severity || {};
+  const origEl = document.getElementById('r-sev-original');
+  const realEl = document.getElementById('r-sev-real');
+  origEl.textContent = sev.original || '—';
+  origEl.className = 'sev-badge ' + sevClass(sev.original);
+  realEl.textContent = sev.real || '—';
+  realEl.className = 'sev-badge ' + sevClass(sev.real);
+  document.getElementById('r-sev-reasoning').textContent = sev.reasoning || '';
+
+  // MITRE
+  const mitreEl = document.getElementById('r-mitre');
+  const techs = r.mitre_techniques || [];
+  if (techs.length) {
+    mitreEl.innerHTML = techs.map(t => `
+      <div class="mitre-item">
+        <a href="https://attack.mitre.org/techniques/${t.id?.replace('.','/')}/" target="_blank" rel="noopener"
+           class="mitre-id" title="View on MITRE ATT&CK">${esc(t.id || '?')}</a>
+        <div style="flex:1">
+          <div class="mitre-name">${esc(t.name || '')}</div>
+          ${t.evidence ? `<div class="mitre-evidence">${esc(t.evidence)}</div>` : ''}
+        </div>
+        <span class="mitre-conf conf-${(t.confidence||'low').toLowerCase()}">${esc(t.confidence||'low')}</span>
+      </div>`).join('');
+  } else {
+    mitreEl.innerHTML = '<span style="color:var(--text3);font-size:.84rem">No MITRE techniques identified</span>';
+  }
+
+  // IOCs
+  const iocSection = document.getElementById('ioc-section');
+  const iocEl = document.getElementById('r-iocs');
+  const iocs = (r.iocs || []).filter(i => i.value && String(i.value).length > 2);
+  if (iocs.length) {
+    iocSection.style.display = 'block';
+    iocEl.innerHTML = iocs.map(i => `
+      <div class="ioc-chip">
+        <span class="ioc-type">${esc(i.type || '?')}</span>
+        <span style="font-size:.8rem">${esc(i.value)}</span>
+        ${isPivotable(i.type) ? `<button class="ioc-pivot-btn" onclick="pivotIOC('${esc(i.value)}')" title="Open in IOC Pivot Hub">↗ Pivot</button>` : ''}
+      </div>`).join('');
+  } else { iocSection.style.display = 'none'; }
+
+  // Steps
+  const stepsEl = document.getElementById('r-steps');
+  const steps = r.investigation_steps || [];
+  stepsEl.innerHTML = steps.map(s => `<li>${esc(s)}</li>`).join('') ||
+    '<li style="color:var(--text3)">No specific steps identified</li>';
+
+  const jrEsc = document.getElementById('r-junior-escalate');
+  const jrEscTxt = document.getElementById('r-junior-escalate-text');
+  if (mode === 'junior' && r.when_to_escalate) {
+    jrEsc.style.display = 'block';
+    jrEscTxt.textContent = r.when_to_escalate;
+  } else { jrEsc.style.display = 'none'; }
+
+  // Actions
+  const actionsEl = document.getElementById('r-actions');
+  const actions = r.recommended_actions || [];
+  actionsEl.innerHTML = actions.map(a =>
+    `<li><span class="action-icon">→</span> ${esc(a)}</li>`
+  ).join('') || '<li style="color:var(--text3)">No specific actions</li>';
+
+  // FP
+  const fp = (r.false_positive_likelihood || 'medium').toLowerCase();
+  const fpBadge = document.getElementById('r-fp-badge');
+  fpBadge.textContent = { low:'🔴 Low — likely real', medium:'🟠 Medium', high:'🟢 High — possibly FP' }[fp] || fp;
+  fpBadge.className = 'fp-badge fp-' + fp;
+  document.getElementById('r-fp-reason').textContent = r.false_positive_reason || '';
+
+  localStorage.setItem('cv_oai_key', document.getElementById('api-key-input').value.trim());
+  showResults();
+}
+
+/* ── Helpers ───────────────────────────────────────────── */
+function sevClass(s) {
+  if (!s) return '';
+  const v = s.toLowerCase();
+  if (v === 'critical') return 'sev-critical';
+  if (v === 'high')     return 'sev-high';
+  if (v === 'medium')   return 'sev-medium';
+  if (v === 'low')      return 'sev-low';
+  return 'sev-info';
+}
+
+function isPivotable(type) {
+  return ['ip','domain','hash','url','email','md5','sha256','sha1'].includes((type||'').toLowerCase());
+}
+
+function pivotIOC(val) {
+  window.open('https://dgiry.github.io/ioc-pivot?ioc=' + encodeURIComponent(val), '_blank', 'noopener');
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function copyReport() {
+  if (!lastResult) return;
+  const r = lastResult;
+  const lines = [
+    `ALERT EXPLANATION REPORT`,
+    `Source: ${r.source || 'Unknown'}  |  Mode: ${mode}`,
+    ``,
+    `── SUMMARY ─────────────────────────────────────────────`,
+    r.summary || '',
+    ``,
+    `── SEVERITY ────────────────────────────────────────────`,
+    `Alert: ${r.severity?.original || '—'}  →  Real: ${r.severity?.real || '—'}`,
+    r.severity?.reasoning || '',
+    ``,
+    `── MITRE ATT&CK ────────────────────────────────────────`,
+    ...(r.mitre_techniques || []).map(t => `• ${t.id} — ${t.name} (${t.confidence}) — ${t.evidence || ''}`),
+    ``,
+    `── IOCs ─────────────────────────────────────────────────`,
+    ...(r.iocs || []).map(i => `• [${i.type}] ${i.value}`),
+    ``,
+    `── INVESTIGATION STEPS ──────────────────────────────────`,
+    ...(r.investigation_steps || []).map((s, i) => `${i+1}. ${s}`),
+    ``,
+    `── RECOMMENDED ACTIONS ──────────────────────────────────`,
+    ...(r.recommended_actions || []).map(a => `→ ${a}`),
+    ``,
+    `── FALSE POSITIVE LIKELIHOOD ────────────────────────────`,
+    `${r.false_positive_likelihood?.toUpperCase() || '—'} — ${r.false_positive_reason || ''}`,
+    ``,
+    `Generated by Alert Explainer — https://dgiry.github.io/alert-explainer`
+  ];
+  navigator.clipboard.writeText(lines.join('\n')).then(() => toast('Report copied!'));
+}
+
+function showLoading() { document.getElementById('status-bar').style.display = 'block'; document.getElementById('explain-btn').disabled = true; }
+function hideLoading()  { document.getElementById('status-bar').style.display = 'none';  document.getElementById('explain-btn').disabled = false; }
+function showResults()  { document.getElementById('results').style.display = 'block'; }
+function hideResults()  { document.getElementById('results').style.display = 'none'; }
+function showError(msg) { const el = document.getElementById('error-box'); el.textContent = '⚠️ ' + msg; el.style.display = 'block'; }
+function hideError()    { document.getElementById('error-box').style.display = 'none'; }
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+/* ── Init ──────────────────────────────────────────────── */
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('cv_oai_key') || '';
+  document.getElementById('api-key-input').value = saved;
+  document.getElementById('api-key-input').addEventListener('change', () => {
+    localStorage.setItem('cv_oai_key', document.getElementById('api-key-input').value.trim());
+  });
+});
+</script>
+</body>
+</html>
