@@ -1150,7 +1150,12 @@ Use this structured data to give a more precise summary, severity assessment, an
 async function callAI(alertText, fmt, apiKey, model) {
   const modeInstruction = mode === 'junior'
     ? 'The user is a junior SOC analyst. Use simple language, explain technical terms, add "what_this_means_junior" and "when_to_escalate" fields with beginner-friendly guidance.'
-    : 'The user is a senior SOC analyst or detection engineer. Be concise and technical. Skip basic explanations.';
+    : `The user is a senior SOC analyst or detection engineer (EXPERT MODE). Follow these constraints strictly:
+MITRE: Return MINIMUM 3 techniques for complex detections (credential access, injection, execution, lateral movement). If the pre-parsed context lists techniques, include ALL of them — do not drop any. Each technique needs evidence from the actual alert fields.
+INVESTIGATION STEPS: Return MINIMUM 5 steps. Fewer than 5 is wrong. Each step must reference specific values from this alert (hostnames, process names, usernames, IPs, timestamps). Cover: (1) process tree, (2) payload/command analysis, (3) IOC network correlation, (4) artefact/memory check, (5) lateral movement / related detections.
+RECOMMENDED ACTIONS: Every action must use conditional language — "Consider...", "If [condition] is confirmed...", "Verify before...". Never write "Immediately isolate" or similar without a stated condition. The analyst should feel in control, not rushed.
+SEVERITY REASONING: 2-3 sentences minimum. Name the specific techniques combined, target process/asset sensitivity, network indicators, and privilege level.
+FP REASON: Sentence 1 — name 2-3 specific signals from THIS alert that make it credible. Sentence 2 — describe one concrete benign scenario (e.g. security tool, EDR agent, pen test, admin script) that could explain the same pattern.`;
 
   const visionOneCtx = visionOneContextBlock(alertText, fmt);
 
