@@ -313,6 +313,10 @@
     .no-key-title{ font-size:.9rem; font-weight:600; color:var(--text0); margin-bottom:.3rem; }
     .no-key-sub{ font-size:.8rem; color:var(--text2); }
 
+    /* ── Export actions ─────────────────────────────── */
+    .export-actions{ display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
+    .btn-export{ font-size:.72rem; padding:.22rem .55rem; }
+
     /* ── Static analysis panel ──────────────────────── */
     #static-panel{ display:none; }
     .static-panel{
@@ -426,7 +430,6 @@
       </div>
       <div style="display:flex;gap:.4rem;flex-wrap:wrap">
         <button class="btn-sm" onclick="clearInput()">🗑 Clear</button>
-        <button class="btn-sm" onclick="copyReport()" id="copy-report-btn" style="display:none">📋 Copy report</button>
       </div>
     </div>
 
@@ -477,8 +480,16 @@
   <div id="static-panel">
     <div class="static-panel">
       <div class="static-panel-header">
-        <div class="static-panel-title">⚡ Instant extract <span style="font-weight:400;text-transform:none;letter-spacing:0">— no AI key needed</span></div>
-        <span class="static-no-ai-note">from alert fields</span>
+        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+          <div class="static-panel-title">⚡ Instant extract <span style="font-weight:400;text-transform:none;letter-spacing:0">— no AI key needed</span></div>
+          <span class="static-no-ai-note">from alert fields</span>
+        </div>
+        <div class="export-actions">
+          <button class="btn-sm btn-export" onclick="copyReport()" title="Copy report as text">📋 Copy</button>
+          <button class="btn-sm btn-export" onclick="copyJson()"   title="Copy JSON to clipboard">{ } JSON</button>
+          <button class="btn-sm btn-export" onclick="exportTxt()"  title="Download as .txt">⬇ TXT</button>
+          <button class="btn-sm btn-export" onclick="exportJson()" title="Download as .json">⬇ JSON</button>
+        </div>
       </div>
       <div id="static-body"></div>
     </div>
@@ -494,9 +505,15 @@
   <div id="results">
 
     <div class="results-header">
-      <span class="source-badge" id="r-source">Unknown source</span>
-      <div style="display:flex;gap:.5rem">
+      <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+        <span class="source-badge" id="r-source">Unknown source</span>
         <span id="r-mode-label" style="font-size:.72rem;color:var(--text3)"></span>
+      </div>
+      <div class="export-actions">
+        <button class="btn-sm btn-export" onclick="copyReport()" title="Copy report as text">📋 Copy report</button>
+        <button class="btn-sm btn-export" onclick="copyJson()"   title="Copy JSON to clipboard">{ } Copy JSON</button>
+        <button class="btn-sm btn-export" onclick="exportTxt()"  title="Download as .txt">⬇ TXT</button>
+        <button class="btn-sm btn-export" onclick="exportJson()" title="Download as .json">⬇ JSON</button>
       </div>
     </div>
 
@@ -593,7 +610,10 @@
 
 /* ── State ─────────────────────────────────────────────── */
 let mode = 'junior'; // junior | expert
-let lastResult = null;
+let lastResult        = null;  // AI analysis result
+let lastStaticResult  = null;  // static analysis data
+let lastInputText     = '';    // raw pasted text
+let lastDetectedFormat = null; // detected format string
 
 /* ── Sample alerts ─────────────────────────────────────── */
 const EXAMPLES = {
@@ -770,8 +790,10 @@ function clearInput() {
   document.getElementById('format-badge').className = 'format-badge';
   hideResults();
   hideError();
-  lastResult = null;
-  document.getElementById('copy-report-btn').style.display = 'none';
+  lastResult        = null;
+  lastStaticResult  = null;
+  lastInputText     = '';
+  lastDetectedFormat = null;
 }
 
 /* ── Explain ───────────────────────────────────────────── */
@@ -791,10 +813,11 @@ async function explain() {
 
   try {
     const result = await callAI(text, fmt, apiKey, model);
-    lastResult = result;
+    lastResult         = result;
+    lastInputText      = text;
+    lastDetectedFormat = fmt;
     hideLoading();
     renderResults(result);
-    document.getElementById('copy-report-btn').style.display = 'inline-flex';
   } catch(err) {
     hideLoading();
     showError(err.message || 'Unexpected error. Check your API key and try again.');
@@ -993,6 +1016,9 @@ function renderStaticPanel(text, fmt) {
   }
 
   const data = staticAnalyze(text, fmt);
+  lastStaticResult   = data;
+  lastInputText      = text;
+  lastDetectedFormat = fmt;
   if (!data) { panel.style.display = 'none'; return; }
 
   const { fields = [], entities = [], mitre = [], iocs = [] } = data;
@@ -1354,38 +1380,254 @@ function esc(s) {
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-function copyReport() {
-  if (!lastResult) return;
-  const r = lastResult;
-  const lines = [
-    `ALERT EXPLANATION REPORT`,
-    `Source: ${r.source || 'Unknown'}  |  Mode: ${mode}`,
-    ``,
-    `── SUMMARY ─────────────────────────────────────────────`,
-    r.summary || '',
-    ``,
-    `── SEVERITY ────────────────────────────────────────────`,
-    `Alert: ${r.severity?.original || '—'}  →  Real: ${r.severity?.real || '—'}`,
-    r.severity?.reasoning || '',
-    ``,
-    `── MITRE ATT&CK ────────────────────────────────────────`,
-    ...(r.mitre_techniques || []).map(t => `• ${t.id} — ${t.name} (${t.confidence}) — ${t.evidence || ''}`),
-    ``,
-    `── IOCs ─────────────────────────────────────────────────`,
-    ...(r.iocs || []).map(i => `• [${i.type}] ${i.value}`),
-    ``,
-    `── INVESTIGATION STEPS ──────────────────────────────────`,
-    ...(r.investigation_steps || []).map((s, i) => `${i+1}. ${s}`),
-    ``,
-    `── RECOMMENDED ACTIONS ──────────────────────────────────`,
-    ...(r.recommended_actions || []).map(a => `→ ${a}`),
-    ``,
-    `── FALSE POSITIVE LIKELIHOOD ────────────────────────────`,
-    `${r.false_positive_likelihood?.toUpperCase() || '—'} — ${r.false_positive_reason || ''}`,
-    ``,
-    `Generated by Alert Explainer — https://dgiry.github.io/alert-explainer`
+/* ── Export ────────────────────────────────────────────── */
+function fmtSlug(fmt) {
+  if (!fmt) return 'unknown';
+  const map = [
+    ['Vision One',    'trend_vision_one'],
+    ['CrowdStrike',   'crowdstrike'],
+    ['Sentinel',      'sentinel'],
+    ['Splunk',        'splunk'],
+    ['Sysmon',        'sysmon'],
+    ['Windows Event', 'windows_event'],
+    ['QRadar',        'qradar'],
+    ['Elastic',       'elastic'],
+    ['CEF',           'cef'],
+    ['LEEF',          'leef'],
+    ['Syslog',        'syslog'],
+    ['JSON Alert',    'json_alert'],
+    ['Raw',           'raw'],
   ];
-  navigator.clipboard.writeText(lines.join('\n')).then(() => toast('Report copied!'));
+  for (const [k, v] of map) if (fmt.includes(k)) return v;
+  return 'unknown';
+}
+
+function exportFilename(ext) {
+  const slug = fmtSlug(lastDetectedFormat);
+  const ts   = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '');
+  return `alert-explainer-${slug}-${ts}.${ext}`;
+}
+
+function buildExportJson() {
+  const r   = lastResult;
+  const sa  = lastStaticResult;
+  const alertText = lastInputText;
+  let inputType = 'text';
+  try { JSON.parse(alertText); inputType = 'json'; } catch {}
+
+  const aiAnalysis = r ? {
+    source:  r.source || '',
+    summary: r.summary || '',
+    severity: {
+      alerted:   r.severity?.original  || null,
+      realWorld: r.severity?.real      || null,
+      rationale: r.severity?.reasoning || ''
+    },
+    mitre: (r.mitre_techniques || []).map(t => ({
+      id:         t.id         || '',
+      name:       t.name       || '',
+      tactic:     t.tactic     || '',
+      confidence: t.confidence || '',
+      is_primary: !!t.is_primary,
+      evidence:   t.evidence   || ''
+    })),
+    investigationSteps:  r.investigation_steps  || [],
+    recommendedActions:  r.recommended_actions  || [],
+    falsePositiveLikelihood: {
+      level:    r.false_positive_likelihood || '',
+      rationale: r.false_positive_reason   || ''
+    },
+    ...(r.what_this_means_junior ? { whatThisMeansJunior: r.what_this_means_junior } : {}),
+    ...(r.when_to_escalate       ? { whenToEscalate:      r.when_to_escalate       } : {})
+  } : null;
+
+  // Merge IOCs: prefer AI result, fall back to static
+  const iocs = { ips: [], domains: [], urls: [], hashes: [], emails: [], other: [] };
+  const rawIOCs = r?.iocs?.length ? r.iocs : (Array.isArray(sa?.iocs) ? sa.iocs : []);
+  rawIOCs.forEach(i => {
+    const t = (i.type || '').toLowerCase();
+    const v = i.value || '';
+    if (!v) return;
+    if (t === 'ip')                                            iocs.ips.push(v);
+    else if (t === 'domain')                                   iocs.domains.push(v);
+    else if (t === 'url')                                      iocs.urls.push(v);
+    else if (t === 'hash' || t.includes('sha') || t === 'md5') iocs.hashes.push(v);
+    else if (t === 'email')                                    iocs.emails.push(v);
+    else                                                       iocs.other.push({ type: t, value: v });
+  });
+
+  const staticForExport = sa ? {
+    fields:   (sa.fields   || []).map(f => ({ label: f.label, value: f.value })),
+    entities: (sa.entities || []).map(e => ({ type:  e.type,  value: e.value })),
+    mitre:    (sa.mitre    || []).map(t =>
+      typeof t === 'string' ? { raw: t } : { id: t.id || '', name: t.name || '' }
+    )
+  } : null;
+
+  return {
+    sourceType:     fmtSlug(lastDetectedFormat),
+    detectedFormat: lastDetectedFormat || 'unknown',
+    mode,
+    inputType,
+    staticAnalysis: staticForExport,
+    aiAnalysis,
+    iocs,
+    rawInputExcerpt: alertText.substring(0, 1000),
+    generatedAt:    new Date().toISOString()
+  };
+}
+
+function buildExportTxt() {
+  const r   = lastResult;
+  const sa  = lastStaticResult;
+  const fmt = lastDetectedFormat || 'Unknown';
+  const ts  = new Date().toLocaleString();
+  const lines = [
+    '═══════════════════════════════════════════════════════════════',
+    '  ALERT EXPLAINER — Analysis Report',
+    `  Generated : ${ts}`,
+    `  Format    : ${fmt}`,
+    `  Mode      : ${mode === 'junior' ? 'Junior (T1 Analyst)' : 'Expert (T2/T3)'}`,
+    '═══════════════════════════════════════════════════════════════',
+    ''
+  ];
+
+  if (sa) {
+    lines.push('── INSTANT EXTRACT ──────────────────────────────────────────');
+    (sa.fields || []).forEach(f => lines.push(`  ${f.label.padEnd(16)}: ${f.value}`));
+    const entities = (sa.entities || []).filter((e, i, a) => a.findIndex(x => x.value === e.value) === i);
+    if (entities.length) {
+      lines.push('');
+      lines.push('  Entities:');
+      entities.forEach(e => lines.push(`    [${e.type}] ${e.value}`));
+    }
+    const mitre = sa.mitre || [];
+    if (mitre.length) {
+      lines.push('');
+      lines.push('  MITRE (static):');
+      mitre.forEach(t => {
+        if (typeof t === 'string') lines.push(`    • ${t}`);
+        else lines.push(`    • ${[t.id, t.name].filter(Boolean).join(' — ')}`);
+      });
+    }
+    const flatIOCs = (Array.isArray(sa.iocs) ? sa.iocs : []).filter((io, i, a) => io.value && a.findIndex(x => x.value === io.value) === i);
+    if (flatIOCs.length) {
+      lines.push('');
+      lines.push('  IOCs:');
+      flatIOCs.forEach(i => lines.push(`    [${i.type}] ${i.value}`));
+    }
+    lines.push('');
+  }
+
+  if (!r) {
+    lines.push('── AI ANALYSIS ──────────────────────────────────────────────');
+    lines.push('  No AI analysis — OpenAI key not provided.');
+    lines.push('');
+    lines.push('─────────────────────────────────────────────────────────────');
+    lines.push('Generated by Alert Explainer — https://dgiry.github.io/alert-explainer');
+    return lines.join('\n');
+  }
+
+  lines.push('── SUMMARY ─────────────────────────────────────────────────');
+  lines.push(r.summary || '(none)');
+  if (mode === 'junior' && r.what_this_means_junior) {
+    lines.push('');
+    lines.push('  💡 What does this mean?');
+    lines.push('  ' + r.what_this_means_junior);
+  }
+  lines.push('');
+
+  lines.push('── SEVERITY ────────────────────────────────────────────────');
+  lines.push(`  Alert severity : ${r.severity?.original || '—'}`);
+  lines.push(`  Real-world     : ${r.severity?.real     || '—'}`);
+  lines.push(`  Reasoning      : ${r.severity?.reasoning || ''}`);
+  lines.push('');
+
+  const techs = r.mitre_techniques || [];
+  if (techs.length) {
+    lines.push('── MITRE ATT&CK ────────────────────────────────────────────');
+    techs.forEach(t => {
+      const primary = t.is_primary ? ' [PRIMARY]' : '';
+      lines.push(`  • ${t.id || '?'} — ${t.name || ''}${primary}`);
+      if (t.tactic)     lines.push(`    Tactic     : ${t.tactic}`);
+      if (t.confidence) lines.push(`    Confidence : ${t.confidence}`);
+      if (t.evidence)   lines.push(`    Evidence   : ${t.evidence}`);
+    });
+    lines.push('');
+  }
+
+  const iocs = r.iocs || [];
+  if (iocs.length) {
+    lines.push('── IOCs ─────────────────────────────────────────────────────');
+    iocs.forEach(i => lines.push(`  [${i.type}] ${i.value}`));
+    lines.push('');
+  }
+
+  const steps = r.investigation_steps || [];
+  if (steps.length) {
+    lines.push('── INVESTIGATION STEPS ──────────────────────────────────────');
+    steps.forEach((s, i) => lines.push(`  ${i + 1}. ${s}`));
+    lines.push('');
+  }
+
+  const actions = r.recommended_actions || [];
+  if (actions.length) {
+    lines.push('── RECOMMENDED ACTIONS ──────────────────────────────────────');
+    actions.forEach(a => lines.push(`  → ${a}`));
+    lines.push('');
+  }
+
+  lines.push('── FALSE POSITIVE LIKELIHOOD ────────────────────────────────');
+  lines.push(`  Level    : ${(r.false_positive_likelihood || '—').toUpperCase()}`);
+  lines.push(`  Rationale: ${r.false_positive_reason || ''}`);
+  lines.push('');
+
+  if (mode === 'junior' && r.when_to_escalate) {
+    lines.push('── WHEN TO ESCALATE ─────────────────────────────────────────');
+    lines.push(r.when_to_escalate);
+    lines.push('');
+  }
+
+  lines.push('─────────────────────────────────────────────────────────────');
+  lines.push('Generated by Alert Explainer — https://dgiry.github.io/alert-explainer');
+  return lines.join('\n');
+}
+
+function downloadFile(filename, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportJson() {
+  if (!lastResult && !lastStaticResult) { toast('Nothing to export yet'); return; }
+  const content  = JSON.stringify(buildExportJson(), null, 2);
+  downloadFile(exportFilename('json'), content, 'application/json');
+  toast('JSON downloaded ✓');
+}
+
+function exportTxt() {
+  if (!lastResult && !lastStaticResult) { toast('Nothing to export yet'); return; }
+  downloadFile(exportFilename('txt'), buildExportTxt(), 'text/plain;charset=utf-8');
+  toast('TXT downloaded ✓');
+}
+
+function copyJson() {
+  if (!lastResult && !lastStaticResult) { toast('Nothing to copy yet'); return; }
+  navigator.clipboard.writeText(JSON.stringify(buildExportJson(), null, 2))
+    .then(() => toast('JSON copied!'));
+}
+
+function copyReport() {
+  if (!lastResult && !lastStaticResult) { toast('Nothing to copy yet'); return; }
+  navigator.clipboard.writeText(buildExportTxt())
+    .then(() => toast('Report copied!'));
 }
 
 /* ── History ───────────────────────────────────────────── */
