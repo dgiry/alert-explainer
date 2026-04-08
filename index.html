@@ -269,6 +269,31 @@
     }
     .junior-box-title{ font-weight:700; color:var(--yellow); margin-bottom:.35rem; font-size:.8rem; }
 
+    /* ── History chips ───────────────────────────────── */
+    .history-row{
+      display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
+      margin-top:.75rem; padding-top:.75rem; border-top:1px solid var(--border2);
+    }
+    .history-label{ font-size:.72rem; color:var(--text3); white-space:nowrap; }
+    .history-chip{
+      font-size:.73rem; background:var(--bg2); border:1px solid var(--border);
+      color:var(--text2); padding:.2rem .65rem; border-radius:20px;
+      cursor:pointer; transition:all .15s; display:flex; align-items:center; gap:.4rem;
+    }
+    .history-chip:hover{ border-color:var(--red); color:var(--text0); }
+    .history-src{ font-size:.62rem; font-weight:700; color:var(--text3); flex-shrink:0; }
+
+    /* ── SIGMA bridge ─────────────────────────────────── */
+    .sigma-bridge{
+      background:color-mix(in srgb,var(--purple) 8%,var(--bg1));
+      border:1px dashed color-mix(in srgb,var(--purple) 30%,var(--border));
+      border-radius:var(--radius-lg); padding:1rem 1.35rem;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:1rem; flex-wrap:wrap; margin-top:.85rem;
+    }
+    .sigma-bridge-text{ font-size:.86rem; color:var(--text1); }
+    .sigma-bridge-text strong{ color:var(--purple); }
+
     /* ── No-key notice ───────────────────────────────── */
     .no-key-notice{
       background:color-mix(in srgb,var(--accent) 8%,var(--bg1));
@@ -359,6 +384,12 @@
       </select>
     </div>
 
+    <!-- History -->
+    <div id="history-row" class="history-row" style="display:none">
+      <span class="history-label">Recent:</span>
+      <div id="history-chips" style="display:flex;gap:.4rem;flex-wrap:wrap"></div>
+    </div>
+
     <!-- API key -->
     <div class="apikey-row">
       <span class="apikey-label">🤖 OpenAI key</span>
@@ -428,9 +459,9 @@
     <!-- IOCs -->
     <div id="ioc-section" class="section" style="display:none">
       <div class="section-title">🔍 IOCs Extracted
-        <a href="https://dgiry.github.io/ioc-pivot" target="_blank" rel="noopener"
+        <a id="pivot-all-link" href="https://dgiry.github.io/ioc-pivot" target="_blank" rel="noopener"
            style="font-size:.68rem;color:var(--accent);text-decoration:none;font-weight:400;letter-spacing:0;text-transform:none;margin-left:auto">
-          🔭 Pivot all →
+          🔭 Pivot first IOC →
         </a>
       </div>
       <div id="r-iocs" class="ioc-list"></div>
@@ -459,6 +490,16 @@
         <span id="r-fp-badge" class="fp-badge">—</span>
         <span id="r-fp-reason" class="fp-reason"></span>
       </div>
+    </div>
+
+    <!-- SIGMA bridge -->
+    <div class="sigma-bridge">
+      <div class="sigma-bridge-text">
+        <strong>✍️ Next step:</strong> Write a detection rule for this attack pattern
+      </div>
+      <button class="btn-sm" onclick="openSigmaGenerator()" style="border-color:color-mix(in srgb,var(--purple) 40%,var(--border));color:var(--purple)">
+        ✍️ SIGMA Generator →
+      </button>
     </div>
 
   </div>
@@ -795,7 +836,16 @@ function renderResults(r) {
   fpBadge.className = 'fp-badge fp-' + fp;
   document.getElementById('r-fp-reason').textContent = r.false_positive_reason || '';
 
+  // Fix "Pivot first IOC" link to point at actual first IOC
+  const pivotLink = document.getElementById('pivot-all-link');
+  const firstPivotable = iocs.find(i => isPivotable(i.type));
+  if (firstPivotable) {
+    pivotLink.href = 'https://dgiry.github.io/ioc-pivot?ioc=' + encodeURIComponent(firstPivotable.value);
+    pivotLink.textContent = '🔭 Pivot: ' + firstPivotable.value.substring(0, 20) + (firstPivotable.value.length > 20 ? '…' : '') + ' →';
+  }
+
   localStorage.setItem('cv_oai_key', document.getElementById('api-key-input').value.trim());
+  saveHistory(r);
   showResults();
 }
 
@@ -858,6 +908,56 @@ function copyReport() {
   navigator.clipboard.writeText(lines.join('\n')).then(() => toast('Report copied!'));
 }
 
+/* ── History ───────────────────────────────────────────── */
+const HIST_KEY = 'ae_history';
+
+function saveHistory(r) {
+  const text = document.getElementById('alert-input').value.trim();
+  let hist = [];
+  try { hist = JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch {}
+  const entry = {
+    text,
+    source: r.source || 'Unknown',
+    severity: r.severity?.real || '',
+    summary_short: (r.summary || '').substring(0, 60),
+    ts: Date.now()
+  };
+  hist = hist.filter(h => h.text !== text);
+  hist.unshift(entry);
+  hist = hist.slice(0, 5);
+  localStorage.setItem(HIST_KEY, JSON.stringify(hist));
+  renderHistory();
+}
+
+function renderHistory() {
+  let hist = [];
+  try { hist = JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch {}
+  const row = document.getElementById('history-row');
+  const chips = document.getElementById('history-chips');
+  if (!hist.length) { row.style.display = 'none'; return; }
+  row.style.display = 'flex';
+  chips.innerHTML = hist.map((h, i) => `
+    <span class="history-chip" onclick="loadHistory(${i})" title="${esc(h.summary_short)}">
+      <span class="history-src">${esc(h.source.split(' ').pop())}</span>
+      ${esc(h.summary_short.substring(0, 28))}${h.summary_short.length > 28 ? '…' : ''}
+    </span>`).join('');
+}
+
+function loadHistory(idx) {
+  let hist = [];
+  try { hist = JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch {}
+  const entry = hist[idx];
+  if (!entry) return;
+  document.getElementById('alert-input').value = entry.text;
+  onInput();
+}
+
+/* ── SIGMA bridge ──────────────────────────────────────── */
+function openSigmaGenerator() {
+  const url = 'https://dgiry.github.io/sigma-generator';
+  window.open(url, '_blank', 'noopener');
+}
+
 function showLoading() { document.getElementById('status-bar').style.display = 'block'; document.getElementById('explain-btn').disabled = true; }
 function hideLoading()  { document.getElementById('status-bar').style.display = 'none';  document.getElementById('explain-btn').disabled = false; }
 function showResults()  { document.getElementById('results').style.display = 'block'; }
@@ -878,6 +978,7 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('api-key-input').addEventListener('change', () => {
     localStorage.setItem('cv_oai_key', document.getElementById('api-key-input').value.trim());
   });
+  renderHistory();
 });
 </script>
 </body>
